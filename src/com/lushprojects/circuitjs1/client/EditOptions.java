@@ -96,10 +96,15 @@ class EditOptions implements Editable {
 		}
 		if (n == 15) {
 		    EditInfo ei = new EditInfo("", 0, -1, -1);
-		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
+		    ei.checkbox = new Checkbox("Show Operating Region", CircuitElm.showOperatingRegion);
 		    return ei;
 		}
 		if (n == 16) {
+		    EditInfo ei = new EditInfo("", 0, -1, -1);
+		    ei.checkbox = new Checkbox("Auto-Adjust Timestep", sim.adjustTimeStep);
+		    return ei;
+		}
+		if (n == 17) {
 		    EditInfo ei = new EditInfo("Matrix Solver", 0, -1, -1);
 		    ei.choice = new Choice();
 		    ei.choice.add(Locale.LS("Auto"));
@@ -108,12 +113,12 @@ class EditOptions implements Editable {
 		    ei.choice.select(sim.solverType);
 		    return ei;
 		}
-		if (n == 17)
+		if (n == 18)
 		    return new EditInfo("Value Label Font Size", CircuitElm.valueFontSize);
 
 		// add new options here (before the adjustTimeStep conditional below)
 
-		if (n == 18 && sim.adjustTimeStep)
+		if (n == 19 && sim.adjustTimeStep)
 		    return new EditInfo("Minimum time step size (s)", sim.minTimeStep, 0, 0).setPositive();
 
 		// do not add new options here because they will be hidden unless adjustTimeStep is set
@@ -211,10 +216,16 @@ class EditOptions implements Editable {
                 if (n == 14)
                     app.autoDCOnReset = ei.checkbox.getState();
 		if (n == 15) {
+		    CircuitElm.showOperatingRegion = ei.checkbox.getState();
+		    Storage stor = Storage.getLocalStorageIfSupported();
+		    if (stor != null)
+			stor.setItem("showOperatingRegion", CircuitElm.showOperatingRegion ? "true" : "false");
+		}
+		if (n == 16) {
 		    sim.adjustTimeStep = ei.checkbox.getState();
 		    ei.newDialog = true;
 		}
-		if (n == 16) {
+		if (n == 17) {
 		    int newType = ei.choice.getSelectedIndex();
 		    if (newType != sim.solverType) {
 			sim.solverType = newType;
@@ -228,9 +239,9 @@ class EditOptions implements Editable {
 			app.needAnalyze();
 		    }
 		}
-		if (n == 17)
+		if (n == 18)
 		    CircuitElm.setValueFontSize(ei.value > 0 ? (int) ei.value : 12);
-		if (n == 18 && ei.value > 0)
+		if (n == 19 && ei.value > 0)
 		    sim.minTimeStep = ei.value;
 	}
 
