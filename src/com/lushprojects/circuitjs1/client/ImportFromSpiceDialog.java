@@ -232,7 +232,8 @@ TextArea outputArea;
 				if (s.startsWith("vto="))
 				    fm.vto = parseNumber(s.substring(4));
 				else if (s.startsWith("beta="))
-				    fm.beta = parseNumber(s.substring(5));
+				    // SPICE: Ids = BETA*(Vgs-VTO)^2; JfetElm: Ids = beta/2*(Vgs-Vt)^2
+				    fm.beta = 2*parseNumber(s.substring(5));
 			    }
 			    fetModels.put(name, fm);
 			}
