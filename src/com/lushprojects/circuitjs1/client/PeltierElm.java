@@ -161,6 +161,9 @@ class PeltierElm extends CircuitElm {
 	if ((n1 == 2 && n2 == 3) || (n1 == 3 && n2 == 2)) return true;
 	return false;
     }
+    // the Seebeck/Peltier terms couple the electrical, thermal and internal nodes,
+    // so they must all be in the same matrix
+    boolean getMatrixConnection(int n1, int n2) { return true; }
 
     void stamp() {
 	// electrical: Seebeck source (nodes 0 -> internal 4) in series with R (4 -> 1)
