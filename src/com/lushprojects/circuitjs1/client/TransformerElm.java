@@ -260,6 +260,15 @@ class TransformerElm extends CircuitElm {
 	    sim.stampRightSide(nodes[2]);
 	    sim.stampRightSide(nodes[3]);
 	}
+	// companion conductances a1..a4 are (inverse inductance matrix)*ts; in AC they become
+	// (inverse inductance matrix)/(jw)
+	void stampAC(ACAnalysis ac) {
+	    double ts = isTrapezoidal() ? sim.timeStep/2 : sim.timeStep;
+	    ac.transAdmittance(nodes[0], nodes[2], nodes[0], nodes[2], -a1, 0, -a1/ts);
+	    ac.transAdmittance(nodes[0], nodes[2], nodes[1], nodes[3], -a2, 0, -a2/ts);
+	    ac.transAdmittance(nodes[1], nodes[3], nodes[0], nodes[2], -a3, 0, -a3/ts);
+	    ac.transAdmittance(nodes[1], nodes[3], nodes[1], nodes[3], -a4, 0, -a4/ts);
+	}
 	void startIteration() {
 	    if (saturationCurrent > 0) {
 		// recompute coefficients with current-dependent inductances

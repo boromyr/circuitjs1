@@ -82,6 +82,10 @@ class Inductor {
 	sim.stampRightSide(nodes[0]);
 	sim.stampRightSide(nodes[1]);
     }
+    void stampAC(ACAnalysis ac) {
+	if (compResistance > 0)
+	    ac.inductor(nodes[0], nodes[1], 1/compResistance, calcEffectiveInductance(current));
+    }
     boolean nonLinear() { return saturationCurrent > 0; }
 
     void startIteration(double voltdiff) {

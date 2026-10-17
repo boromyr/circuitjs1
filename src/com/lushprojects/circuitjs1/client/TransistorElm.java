@@ -338,6 +338,14 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    }
 	}
 
+	// junction capacitance companions (trapezoidal, geq = 2C/dt) -> jwC
+	void stampAC(ACAnalysis ac) {
+	    if (geqBE > 0)
+		ac.capacitor(nodes[0], nodes[2], geqBE, geqBE*sim.timeStep/2);
+	    if (geqBC > 0)
+		ac.capacitor(nodes[0], nodes[1], geqBC, geqBC*sim.timeStep/2);
+	}
+
 	void stamp() {
 	    sim.stampNonLinear(nodes[0]);
 	    sim.stampNonLinear(nodes[1]);

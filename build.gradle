@@ -141,6 +141,7 @@ tasks.register('makeSite', Copy) {
         include '**/*.css'
         include 'canvas2svg.js'
         include 'lz-string.min.js'
+        include 'bodeplot.js'
         include '**/*.png', '**/*.jpg', '**/*.gif', '**/*.svg'
         include '**/*.txt', '**/*.xml'  // e.g. setuplist.txt if here
         include 'font/**'

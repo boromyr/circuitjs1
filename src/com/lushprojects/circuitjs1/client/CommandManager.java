@@ -157,6 +157,8 @@ public class CommandManager {
 	    app.undoManager.pushUndo();
 	    TestCreator.createTest(app);
     	}
+    	if (item=="bodeplot")
+    		openBodePlot();
     	if (item=="stackAll")
     		app.scopeManager.stackAll();
     	if (item=="unstackAll")
@@ -667,6 +669,12 @@ public class CommandManager {
 	app.repaint();
     }
         
+    // the Bode plot window lives in war/bodeplot.js; it gets its data from ACAnalysis
+    static native void openBodePlot() /*-{
+	if ($wnd.CircuitJSBode)
+	    $wnd.CircuitJSBode.open();
+    }-*/;
+
     static native void newElectronWindow() /*-{
         $wnd.newWindow();
     }-*/;

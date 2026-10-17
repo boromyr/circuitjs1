@@ -548,6 +548,14 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    return true;
 	}
 	
+	// gate capacitance companions (backward euler, geq = C/dt) -> jwC
+	void stampAC(ACAnalysis ac) {
+	    if (model.capGS > 0 && geqGS > 0)
+		ac.capacitor(nodes[0], nodes[1], geqGS, model.capGS);
+	    if (model.capGD > 0 && geqGD > 0)
+		ac.capacitor(nodes[0], nodes[2], geqGD, model.capGD);
+	}
+
 	void stepFinished() {
 	    calculate(true);
 

@@ -176,6 +176,7 @@ class DiodeElm extends CircuitElm {
 	    // don't need any internal nodes if no series resistance
 	    diode.stamp(nodes[0], nodes[1]);
     }
+    void stampAC(ACAnalysis ac) { diode.stampAC(ac); }
     void doStep() {
 	diode.doStep(volts[0]-volts[diodeEndNode]);
     }

@@ -1674,3 +1674,4 @@
 "turns ratio cannot be zero"="il rapporto di spire non può essere zero"
 "unconnected nodes:"="nodi non collegati:"
 "wattmeter (old)"="wattmetro (vecchio)"
+"Bode Plot..."="Diagramma di Bode..."

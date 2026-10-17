@@ -235,6 +235,11 @@ public abstract class CompositeElm extends CircuitElm {
 	numNodes = compNodeList.size();
     }
 
+    void stampAC(ACAnalysis ac) {
+	for (CircuitElm ce: compElmList)
+	    ce.stampAC(ac);
+    }
+
     void preStamp() {
 	for (CircuitElm ce: compElmList)
 	    ce.preStamp();

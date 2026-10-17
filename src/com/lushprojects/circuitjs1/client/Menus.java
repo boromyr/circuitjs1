@@ -184,6 +184,7 @@ public class Menus {
 	m.addItem(unstackAllItem = iconMenuItem("columns", "Unstack All", new MyCommand("scopes", "unstackAll")));
 	m.addItem(combineAllItem = iconMenuItem("object-group", "Combine All", new MyCommand("scopes", "combineAll")));
 	m.addItem(separateAllItem = iconMenuItem("object-ungroup", "Separate All", new MyCommand("scopes", "separateAll")));
+	m.addItem(iconMenuItem("chart-line", "Bode Plot...", new MyCommand("scopes", "bodeplot")));
 	menuBar.addItem(Locale.LS("Scopes"), m);
 
 	optionsMenuBar = m = new MenuBar(true );
@@ -249,6 +250,7 @@ public class Menus {
 	if (TestCreator.enabled)
 	    m.addItem(new MenuItem(Locale.LS("Create Test"), new MyCommand("tools", "createTest")));
 	menuBar.addItem(Locale.LS("Tools"), m);
+	menuBar.addItem(Locale.LS("Bode"), new MyCommand("scopes", "bodeplot"));
 
 	mainMenuBar = new MenuBar(true);
 	mainMenuBar.setAutoOpen(true);

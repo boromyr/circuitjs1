@@ -173,6 +173,12 @@ class CapacitorElm extends CircuitElm {
 	    if (seriesResistance > 0)
 		sim.stampResistor(nodes[1], nodes[2], seriesResistance);
 	}
+	void stampAC(ACAnalysis ac) {
+	    if (doDcAnalysis())
+		ac.capacitor(nodes[0], nodes[1], 1e-8, capacitance);
+	    else if (compResistance > 0)
+		ac.capacitor(nodes[0], nodes[capNode2], 1/compResistance, capacitance);
+	}
 	void startIteration() {
 	    if (isTrapezoidal())
 		curSourceValue = -voltdiff/compResistance-current;

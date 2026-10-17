@@ -36,6 +36,7 @@ public class SimulationManager {
     // mapping from elements to connected routed wires
     HashMap<CircuitElm, ArrayList<RoutedWireConnection>> routedWireMap;
     CircuitElm elmArr[];
+    ACAnalysis acAnalysis = new ACAnalysis(this);
     double t;
 
     // Solver type: 0=Auto, 1=Dense, 2=Sparse
@@ -1411,6 +1412,7 @@ public class SimulationManager {
 		goodIterations++;
 	    else
 		goodIterations = 0;
+	    acAnalysis.stepConverged();
 	    t += timeStep;
 	    timeStepAccum += timeStep;
 	    if (timeStepAccum >= maxTimeStep) {

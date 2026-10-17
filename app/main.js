@@ -203,7 +203,19 @@ function createWindow () {
       windows.splice(i, 1);
   })
 
-  mainWindow.webContents.setWindowOpenHandler(({ disposition }) => {
+  mainWindow.webContents.setWindowOpenHandler(({ frameName }) => {
+	// Bode plot window (war/bodeplot.js): a blank, same-origin child window
+	// that the simulator page fills and redraws itself
+	if (frameName === 'circuitjs-bode') {
+	  return { action: 'allow', overrideBrowserWindowOptions: {
+	    parent: mainWindow,
+	    title: 'Bode Plot',
+	    minWidth: 480,
+	    minHeight: 320,
+	    backgroundColor: '#1e1e1e',
+	    autoHideMenuBar: true
+	  } };
+	}
 	// new windows are handled via IPC (window.newWindow); deny everything else
 	return { action: 'deny' };
   });

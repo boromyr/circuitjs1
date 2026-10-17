@@ -101,6 +101,7 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	void startIteration() {
 	    ind.startIteration(volts[0]-volts[1]);
 	}
+	void stampAC(ACAnalysis ac) { ind.stampAC(ac); }
 	boolean nonLinear() { return ind.nonLinear(); }
 	void calculateCurrent() {
 	    double voltdiff = volts[0]-volts[1];

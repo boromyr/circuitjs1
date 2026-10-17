@@ -117,6 +117,12 @@ class Diode {
 	}
     }
 
+    // junction capacitance companion (trapezoidal, geqCap = 2C/dt) -> jwC
+    void stampAC(ACAnalysis ac) {
+	if (geqCap > 0)
+	    ac.capacitor(nodes[0], nodes[1], geqCap, geqCap*sim.timeStep/2);
+    }
+
     void stepFinished(double voltdiff) {
 	if (model != null && (model.junctionCap > 0 || model.transitTime > 0) && geqCap > 0) {
 	    capVolt = voltdiff;
