@@ -61,6 +61,25 @@ public class Scrollbar extends  Composite implements
 	static int BARWIDTH=3;
 	static int BARMARGIN=3;
 
+	// colors, overridable by the page stylesheet (see dark-theme.css)
+	static String bgColor, fgColor, disabledColor, trackColor, barColor;
+
+	static void loadColors() {
+		if (bgColor != null)
+			return;
+		bgColor       = getCssColor("--cirjs-scrollbar-bg", "#ffffff");
+		fgColor       = getCssColor("--cirjs-scrollbar-fg", "#000000");
+		disabledColor = getCssColor("--cirjs-scrollbar-disabled", "lightgrey");
+		trackColor    = getCssColor("--cirjs-scrollbar-track", "grey");
+		barColor      = getCssColor("--cirjs-scrollbar-bar", "red");
+	}
+
+	static native String getCssColor(String name, String def) /*-{
+		var v = $wnd.getComputedStyle($doc.documentElement).getPropertyValue(name);
+		v = v ? v.trim() : "";
+		return v.length > 0 ? v : def;
+	}-*/;
+
 	Canvas can;
 	VerticalPanel pan;
 	Context2d g;
@@ -87,7 +106,8 @@ public class Scrollbar extends  Composite implements
 		can.setCoordinateSpaceHeight(SCROLLHEIGHT);
 		pan.add(can);
 		g=can.getContext2d();
-		g.setFillStyle("#ffffff");
+		loadColors();
+		g.setFillStyle(bgColor);
 		can.addClickHandler( this);
 		can.addMouseDownHandler(this);
 		can.addMouseUpHandler(this);
@@ -120,9 +140,9 @@ public class Scrollbar extends  Composite implements
 	
 	void draw() {
 		if (enabled)
-			g.setStrokeStyle("#000000");
+			g.setStrokeStyle(fgColor);
 		else
-			g.setStrokeStyle("lightgrey");
+			g.setStrokeStyle(disabledColor);
 		g.setLineWidth(1.0);
 		g.fillRect(0,0,VERTICALPANELWIDTH,SCROLLHEIGHT);
 		g.beginPath();
@@ -134,7 +154,7 @@ public class Scrollbar extends  Composite implements
 		g.lineTo(VERTICALPANELWIDTH-HMARGIN-SCROLLHEIGHT+3, SCROLLHEIGHT);
 		g.stroke();
 		if (enabled)
-			g.setStrokeStyle("grey");
+			g.setStrokeStyle(trackColor);
 		g.beginPath();
 		g.setLineWidth(5.0);
 		g.moveTo(HMARGIN+SCROLLHEIGHT+BARMARGIN, SCROLLHEIGHT/2);
@@ -145,12 +165,12 @@ public class Scrollbar extends  Composite implements
 			if (attachedElm!=null && attachedElm.needsHighlight())
 				g.setStrokeStyle(CircuitElm.selectColor.getHexValue());
 			else
-				g.setStrokeStyle("red");
+				g.setStrokeStyle(barColor);
 			g.beginPath();
 			g.moveTo(HMARGIN+SCROLLHEIGHT+BARMARGIN, SCROLLHEIGHT/2);
 			g.lineTo(p, SCROLLHEIGHT/2);
 			g.stroke();
-			g.setStrokeStyle("#000000");
+			g.setStrokeStyle(fgColor);
 //			g.beginPath();
 //			g.moveTo(p, 0);
 //			g.lineTo(p, SCROLLHEIGHT);

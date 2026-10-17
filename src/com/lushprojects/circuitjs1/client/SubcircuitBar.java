@@ -97,9 +97,9 @@ public class SubcircuitBar extends FlowPanel {
     }
 
     private void styleLabel(InlineLabel label) {
+	label.addStyleName("cirjs-toolbar-label");
 	Style style = label.getElement().getStyle();
 	style.setFontSize(14, Style.Unit.PX);
-	style.setColor("#333");
 	style.setPaddingRight(10, Style.Unit.PX);
     }
 

@@ -193,7 +193,7 @@ public class ShortcutsDialog extends Dialog {
 		TextBox box = textBoxes.get(i);
 		String str = shortcuts.get(i);
 		if (str.length() == 0) {
-		    box.getElement().getStyle().setColor("black");
+		    box.getElement().getStyle().clearColor();
 		    continue;
 		}
 		Character c = str.charAt(0);
@@ -205,7 +205,7 @@ public class ShortcutsDialog extends Dialog {
 		    other.getElement().getStyle().setColor("red");
 		    result = true;
 		} else
-		    box.getElement().getStyle().setColor("black");
+		    box.getElement().getStyle().clearColor();
 
 		boxForShortcut.put(c, box);
 	    }

@@ -1,0 +1,258 @@
+/*
+ * Dark theme for CircuitJS1.
+ * Loaded by circuitjs.html AFTER fontello.css; the GWT "clean" theme and
+ * style.css are injected at runtime, so overrides of their rules use !important.
+ *
+ * The circuit-drawing canvas itself is already dark by default (CircuitJS
+ * draws a black background unless "White Background" is checked in the
+ * View menu), so it is left alone here.
+ */
+
+:root {
+	--dark-bg: #1e1e1e;
+	--dark-bg-alt: #2a2a2a;
+	--dark-bg-hover: #3a3a3a;
+	--dark-border: #4a4a4a;
+	--dark-text: #e0e0e0;
+	--dark-text-dim: #9a9a9a;
+	--dark-accent: #3a6ea5;
+
+	/* colors read by Scrollbar.java when drawing the sliders */
+	--cirjs-scrollbar-bg: #1e1e1e;
+	--cirjs-scrollbar-fg: #e0e0e0;
+	--cirjs-scrollbar-disabled: #555555;
+	--cirjs-scrollbar-track: #808080;
+	--cirjs-scrollbar-bar: red;
+}
+
+html, body {
+	background: var(--dark-bg) !important;
+	color: var(--dark-text) !important;
+}
+
+a, a:visited {
+	color: #6cb4ff;
+}
+
+/* generic form controls that aren't wrapped in a gwt-* class */
+input, select, textarea, button {
+	background-color: var(--dark-bg-alt);
+	color: var(--dark-text);
+	border: 1px solid var(--dark-border);
+}
+
+table {
+	color: inherit;
+}
+
+/* ---- GWT "clean" theme overrides ---- */
+
+/*
+ * GWT injects the "clean" theme stylesheet at runtime (via the nocache.js
+ * bootstrap), and depending on the linker its <link> can end up placed
+ * after this one in <head> - so every override below needs !important to
+ * reliably win regardless of injection order, not just matching specificity.
+ */
+
+.gwt-Button {
+	background: var(--dark-bg-alt) !important;
+	color: var(--dark-text) !important;
+	border-color: var(--dark-border) !important;
+}
+.gwt-Button:hover {
+	background: var(--dark-bg-hover) !important;
+}
+.gwt-Button[disabled] {
+	color: var(--dark-text-dim) !important;
+}
+
+.gwt-TextBox, .gwt-TextArea, .gwt-ListBox, .gwt-PasswordTextBox,
+.gwt-DateBox, .gwt-SuggestBox {
+	background: var(--dark-bg-alt) !important;
+	color: var(--dark-text) !important;
+	border-color: var(--dark-border) !important;
+}
+.gwt-TextBox-readonly, .gwt-TextArea-readonly, .gwt-PasswordTextBox-readonly {
+	background: #262626 !important;
+	color: var(--dark-text-dim) !important;
+}
+
+.gwt-CheckBox, .gwt-RadioButton {
+	color: var(--dark-text) !important;
+}
+.gwt-CheckBox-disabled, .gwt-RadioButton-disabled {
+	color: var(--dark-text-dim) !important;
+}
+
+.gwt-DialogBox {
+	background: var(--dark-bg-alt) !important;
+	color: var(--dark-text) !important;
+	border-color: var(--dark-border) !important;
+}
+.gwt-DialogBox .Caption {
+	background: #303030 !important;
+	color: var(--dark-text) !important;
+}
+.gwt-DialogBox .dialogContent,
+.gwt-DialogBox .dialogMiddleCenter,
+.gwt-DialogBox .dialogTopCenter,
+.gwt-DialogBox .dialogBottomCenter {
+	background: var(--dark-bg-alt) !important;
+}
+
+.gwt-PopupPanel, .gwt-DecoratedPopupPanel {
+	background: var(--dark-bg-alt) !important;
+	color: var(--dark-text) !important;
+	border-color: var(--dark-border) !important;
+}
+.gwt-PopupPanelGlass {
+	background: #000 !important;
+	opacity: 0.5 !important;
+}
+
+/*
+ * DecoratedPopupPanel/MenuBarPopup/DialogBox render as a 3x3 grid of cells
+ * (an old-school 9-slice border), and clean.css gives the *MiddleCenter
+ * cell its own flat background color separate from the outer widget - the
+ * same rule for .gwt-MenuBarPopup above doesn't reach it.
+ */
+.gwt-MenuBarPopup .menuPopupMiddleCenter {
+	background: var(--dark-bg-alt) !important;
+}
+.gwt-DecoratedPopupPanel .popupMiddleCenter {
+	background: var(--dark-bg-alt) !important;
+}
+
+/*
+ * The border cells of that grid are light PNG sprites (circles.png,
+ * hborder.png, vborder.png) from the clean theme, which draw a white frame
+ * around dialogs and popups. Flatten them to the panel color instead.
+ */
+.gwt-DialogBox .dialogTopLeft, .gwt-DialogBox .dialogTopCenter,
+.gwt-DialogBox .dialogTopRight, .gwt-DialogBox .dialogMiddleLeft,
+.gwt-DialogBox .dialogMiddleRight, .gwt-DialogBox .dialogBottomLeft,
+.gwt-DialogBox .dialogBottomCenter, .gwt-DialogBox .dialogBottomRight,
+.gwt-MenuBarPopup .menuPopupTopLeft, .gwt-MenuBarPopup .menuPopupTopCenter,
+.gwt-MenuBarPopup .menuPopupTopRight, .gwt-MenuBarPopup .menuPopupMiddleLeft,
+.gwt-MenuBarPopup .menuPopupMiddleRight, .gwt-MenuBarPopup .menuPopupBottomLeft,
+.gwt-MenuBarPopup .menuPopupBottomCenter, .gwt-MenuBarPopup .menuPopupBottomRight,
+.gwt-DecoratedPopupPanel .popupTopLeft, .gwt-DecoratedPopupPanel .popupTopCenter,
+.gwt-DecoratedPopupPanel .popupTopRight, .gwt-DecoratedPopupPanel .popupMiddleLeft,
+.gwt-DecoratedPopupPanel .popupMiddleRight, .gwt-DecoratedPopupPanel .popupBottomLeft,
+.gwt-DecoratedPopupPanel .popupBottomCenter, .gwt-DecoratedPopupPanel .popupBottomRight {
+	background-image: none !important;
+	background-color: var(--dark-bg-alt) !important;
+}
+
+.gwt-MenuBar, .gwt-MenuBar-horizontal, .gwt-MenuBar-vertical, .gwt-MenuBarPopup {
+	background: #2d2d2d !important;
+	color: var(--dark-text) !important;
+	border-color: var(--dark-border) !important;
+}
+.gwt-MenuBar .gwt-MenuItem {
+	color: var(--dark-text) !important;
+}
+.gwt-MenuBar .gwt-MenuItem-selected {
+	background: var(--dark-accent) !important;
+	color: #fff !important;
+}
+.gwt-MenuItem-disabled, .gwt-MenuItem-disabled * {
+	color: #6a6a6a !important;
+}
+
+.gwt-TabBar, .gwt-DecoratedTabBar, .gwt-TabBarItem, .gwt-TabPanelBottom,
+.gwt-TabLayoutPanel, .gwt-TabPanel {
+	background: var(--dark-bg-alt) !important;
+	color: var(--dark-text) !important;
+	border-color: var(--dark-border) !important;
+}
+.gwt-TabBarItem-selected {
+	background: var(--dark-bg) !important;
+	color: #fff !important;
+}
+
+.gwt-Tree, .gwt-TreeItem {
+	background: var(--dark-bg-alt) !important;
+	color: var(--dark-text) !important;
+}
+.gwt-TreeItem-selected {
+	background: var(--dark-accent) !important;
+	color: #fff !important;
+}
+
+.gwt-DecoratorPanel, .gwt-DecoratedStackPanel, .gwt-StackPanel,
+.gwt-StackLayoutPanel, .gwt-DisclosurePanel {
+	background: var(--dark-bg-alt) !important;
+	color: var(--dark-text) !important;
+	border-color: var(--dark-border) !important;
+}
+
+.gwt-SplitLayoutPanel-HDragger, .gwt-SplitLayoutPanel-VDragger {
+	background: var(--dark-border) !important;
+}
+
+.gwt-Label {
+	color: var(--dark-text) !important;
+}
+.gwt-Label-selected {
+	border-top-color: var(--dark-border) !important;
+	border-bottom-color: var(--dark-border) !important;
+}
+.gwt-Label-1off {
+	color: var(--dark-text-dim) !important;
+}
+.gwt-Label-2off {
+	color: #7a7a7a !important;
+}
+
+.gwt-HTML {
+	color: var(--dark-text) !important;
+}
+
+/* ---- circuitjs.html's own inline classes ---- */
+
+.disabled {
+	color: #6a6a6a;
+}
+
+.topButton {
+	background-color: #3a3a3a;
+	color: var(--dark-text);
+	border-color: var(--dark-border);
+	border-bottom-color: #222;
+}
+
+/* icon toolbar (Toolbar.java) and subcircuit bar (SubcircuitBar.java), defaults in style.css */
+.cirjs-toolbar {
+	background-color: #2d2d2d !important;
+	border-color: var(--dark-border) !important;
+}
+.cirjs-toolbar-button, .cirjs-toolbar-variant, .cirjs-toolbar-label {
+	color: var(--dark-text) !important;
+}
+.cirjs-toolbar-button:hover, .cirjs-toolbar-button-active {
+	color: #4da3ff !important;
+}
+.cirjs-toolbar-button-active {
+	background-color: #2a3f52 !important;
+}
+.palette-container {
+	background-color: var(--dark-bg-alt) !important;
+	border-color: var(--dark-border) !important;
+}
+
+/* scrollbars (Chromium/Electron) */
+::-webkit-scrollbar {
+	width: 12px;
+	height: 12px;
+}
+::-webkit-scrollbar-track {
+	background: var(--dark-bg);
+}
+::-webkit-scrollbar-thumb {
+	background: var(--dark-border);
+	border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: #5a5a5a;
+}

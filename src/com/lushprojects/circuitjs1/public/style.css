@@ -1,5 +1,25 @@
 @charset "UTF-8";
 
+/* Icon toolbar (Toolbar.java) and subcircuit bar (SubcircuitBar.java); dark-theme.css overrides these */
+.cirjs-toolbar {
+	background-color: #f8f8f8;
+	border-color: #ccc;
+}
+.cirjs-toolbar-button, .cirjs-toolbar-variant, .cirjs-toolbar-label {
+	color: #333;
+}
+.cirjs-toolbar-button:hover {
+	color: #007bff;
+}
+.cirjs-toolbar-button-active {
+	color: #007bff;
+	background-color: #e6f7ff;
+}
+.palette-container {
+	background-color: #ffffff;
+	border-color: #ccc;
+}
+
 /*Hide all mobile elements when in desktop usage*/
 .trigger, .toptrigger, .triggerLabel, toptriggerlabel {
 	display: none;

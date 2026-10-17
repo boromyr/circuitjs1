@@ -26,13 +26,12 @@ public class Toolbar extends FlowPanel {
     Label resistorButton;
 
     public Toolbar() {
-        // Set the overall style of the toolbar
+        // Set the overall style of the toolbar (colors come from style.css / dark-theme.css)
+	addStyleName("cirjs-toolbar");
 	Style style = getElement().getStyle();
         style.setPadding(2, Style.Unit.PX);
-        style.setBackgroundColor("#f8f8f8");
         style.setBorderWidth(1, Style.Unit.PX);
         style.setBorderStyle(Style.BorderStyle.SOLID);
-        style.setBorderColor("#ccc");
         style.setDisplay(Style.Display.FLEX);
 	style.setProperty("alignItems", "center");
 
@@ -101,10 +100,10 @@ public class Toolbar extends FlowPanel {
 	    iconLabel.getElement().addClassName("cirjsicon-" + iconClass);
         iconLabel.setTitle(Locale.LS(tooltip));
 
-        // Style the icon button
+        // Style the icon button (color and hover color come from CSS)
+	iconLabel.addStyleName("cirjs-toolbar-button");
 	Style style = iconLabel.getElement().getStyle();
         style.setFontSize(24, Style.Unit.PX);
-        style.setColor("#333");
         style.setPadding(1, Style.Unit.PX);
         style.setMarginRight(5, Style.Unit.PX);
         style.setCursor(Style.Cursor.POINTER);
@@ -112,16 +111,10 @@ public class Toolbar extends FlowPanel {
 	    style.setPaddingTop(5, Style.Unit.PX);
 	style.setProperty("touchAction", "none");
 
-        // Add hover effect for the button
-        iconLabel.addMouseOverHandler(event -> iconLabel.getElement().getStyle().setColor("#007bff"));
-        iconLabel.addMouseOutHandler(event -> iconLabel.getElement().getStyle().setColor("#333"));
-
         // Add a click handler to perform the action
         iconLabel.addClickHandler(new ClickHandler() {
             @Override
             public void onClick(ClickEvent event) {
-		// un-highlight
-        	iconLabel.getElement().getStyle().setColor("#333");
 		if (iconLabel == activeButton) {
 		    new MyCommand("main", "Select").execute();
 		    activeButton = null;
@@ -224,9 +217,7 @@ public class Toolbar extends FlowPanel {
 	Style paletteStyle = paletteContainer.getElement().getStyle();
 	paletteStyle.setPosition(Style.Position.ABSOLUTE);
 	paletteStyle.setZIndex(1000); // High z-index to appear on top
-	paletteStyle.setBackgroundColor("#ffffff");
 	paletteStyle.setBorderWidth(1, Style.Unit.PX);
-	paletteStyle.setBorderColor("#ccc");
 	paletteStyle.setBorderStyle(Style.BorderStyle.SOLID);
 	paletteStyle.setPadding(5, Style.Unit.PX);
 
@@ -239,8 +230,8 @@ public class Toolbar extends FlowPanel {
 	    variantButton.setTitle(app.getLabelTextForClass(info[i+1]));
 
 	    // Style the variant button
+	    variantButton.addStyleName("cirjs-toolbar-variant");
 	    Style variantStyle = variantButton.getElement().getStyle();
-	    variantStyle.setColor("#333");
 	    //variantStyle.setPadding(5, Style.Unit.PX);
 	    variantStyle.setCursor(Style.Cursor.POINTER);
 	    variantStyle.setProperty("touchAction", "none");
@@ -310,25 +301,22 @@ public class Toolbar extends FlowPanel {
     }
 
     private void styleModeLabel(Label label) {
+	label.addStyleName("cirjs-toolbar-label");
 	Style style = label.getElement().getStyle();
         style.setFontSize(16, Style.Unit.PX);
-        style.setColor("#333");
         style.setPaddingRight(10, Style.Unit.PX);
 	style.setProperty("whiteSpace", "nowrap");
     }
 
     public void highlightButton(String key) {
         // Deactivate the currently active button
-        if (activeButton != null) {
-            activeButton.getElement().getStyle().setColor("#333"); // Reset color
-            activeButton.getElement().getStyle().setBackgroundColor(null);
-        }
+        if (activeButton != null)
+            activeButton.removeStyleName("cirjs-toolbar-button-active");
 
         // Activate the new button
         Label newActiveButton = highlightableButtons.get(key);
         if (newActiveButton != null) {
-            newActiveButton.getElement().getStyle().setColor("#007bff"); // Active color
-            newActiveButton.getElement().getStyle().setBackgroundColor("#e6f7ff");
+            newActiveButton.addStyleName("cirjs-toolbar-button-active");
             activeButton = newActiveButton;
         }
     }
