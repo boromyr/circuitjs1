@@ -331,10 +331,19 @@ public class Scrollbar extends  Composite implements
 			 CirSim.theApp.mouse.setMouseElm(attachedElm);
 	}
 	
+	// one step every mouse notch (3 units); a touchpad's small steps add up
+	double wheelSteps;
+
 	public void onMouseWheel(MouseWheelEvent e) {
 		e.preventDefault();
-		if (enabled)
-			setValue(val+e.getDeltaY()/3);
+		if (!enabled)
+			return;
+		wheelSteps += MouseManager.wheelDeltaY(e)/3;
+		int n = (int) wheelSteps;
+		if (n != 0) {
+			wheelSteps -= n;
+			setValue(val+n);
+		}
 	}
 	
 	public void onClick(ClickEvent e) {

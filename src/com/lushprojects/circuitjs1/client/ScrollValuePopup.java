@@ -51,7 +51,7 @@ public class ScrollValuePopup extends PopupPanel implements MouseOutHandler, Mou
 	CirSim sim;
 	
 	
-	ScrollValuePopup(final int x, final int y, int dy, CircuitElm e, CirSim s) {
+	ScrollValuePopup(final int x, final int y, double dy, CircuitElm e, CirSim s) {
 		super();
 		myElm=e;
 		deltaY=0;
@@ -165,7 +165,7 @@ public class ScrollValuePopup extends PopupPanel implements MouseOutHandler, Mou
 	
     public void onMouseWheel(MouseWheelEvent e) {
 	e.preventDefault();
-    	doDeltaY( e.getDeltaY());
+    	doDeltaY(MouseManager.wheelDeltaY(e));
     }
     
     public void onMouseDown(MouseDownEvent e) {
@@ -186,8 +186,8 @@ public class ScrollValuePopup extends PopupPanel implements MouseOutHandler, Mou
     
     static final int scale = 6;
 
-    public void doDeltaY(int dy) {
-    	deltaY += (dy/(double) getDevicePixelRatio());
+    public void doDeltaY(double dy) {
+    	deltaY += dy/getDevicePixelRatio();
     	setElmValue();
     	setupLabels();
     }

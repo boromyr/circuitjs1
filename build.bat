@@ -1,9 +1,11 @@
 @echo off
 rem Builds CircuitJS1 on Windows.
 rem
-rem   build.bat            compile GWT and assemble the web site in site\
-rem   build.bat electron   ...then package the offline app in offline\CircuitJS1-win32-x64
-rem                        and update the installed copy in %INSTALL% (if present)
+rem   build.bat            compile GWT and assemble the web site in site\, then copy
+rem                        it into the offline app's resources\app (if packaged)
+rem                        and into the installed copy in %INSTALL% (if present)
+rem   build.bat electron   ...package the offline app in offline\CircuitJS1-win32-x64
+rem                        from scratch instead, then update the installed copy
 rem   build.bat serve      serve site\ on http://localhost:8000 (needs Python)
 rem
 rem Uses the portable JDK 8 and Gradle home in .tools\ when present, otherwise
@@ -39,6 +41,18 @@ cd /d "%ROOT%"
 call "%ROOT%\gradlew.bat" compileGwt makeSite --console plain || goto fail
 if /i "%TARGET%"=="electron" goto electron
 echo === Done: site\circuitjs.html
+if not exist "%OUT%\resources\app\war" exit /b 0
+
+rem the offline app is already packaged: refresh only its resources\app (the site
+rem and app\*, except package.json, which the packaging points at portable.js)
+rem without extracting Electron again, then update the installed copy
+echo === Updating %OUT%\resources\app
+robocopy "%ROOT%\site" "%OUT%\resources\app\war" /e /r:1 /w:1 /nfl /ndl /njh /njs /np >nul
+if errorlevel 8 goto fail
+robocopy "%ROOT%\app" "%OUT%\resources\app" /xf package.json *.cs /r:1 /w:1 /nfl /ndl /njh /njs /np >nul
+if errorlevel 8 goto fail
+call :helper "%OUT%\resources\app" || goto fail
+if exist "%INSTALL%\resources\app" call :install || goto fail
 exit /b 0
 
 :electron
@@ -64,7 +78,9 @@ ren "%OUT%\electron.exe" CircuitJS1.exe || goto fail
 
 set "APP=%OUT%\resources\app"
 mkdir "%APP%"
-copy /y "%ROOT%\app\*" "%APP%" >nul || goto fail
+robocopy "%ROOT%\app" "%APP%" /xf *.cs /nfl /ndl /njh /njs /np >nul
+if errorlevel 8 goto fail
+call :helper "%APP%" || goto fail
 robocopy "%ROOT%\site" "%APP%\war" /e /nfl /ndl /njh /njs /np >nul
 if errorlevel 8 goto fail
 
@@ -80,23 +96,54 @@ echo === Done: %OUT%\CircuitJS1.exe and offline\CircuitJS1-%VERSION%-win32-x64.z
 if exist "%INSTALL%\resources\app" call :install || goto fail
 exit /b 0
 
+rem Compiles app\filedialog.cs (native open/save dialogs that remember the folder
+rem even when closed without a file, see main.js) into the given app folder, with
+rem the C# compiler of .NET Framework 4 that comes with Windows.  Without it the
+rem app falls back to Electron's dialogs.
+:helper
+set "CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+if not exist "%CSC%" (
+    echo C# compiler not found: the app will use Electron's file dialogs.
+    exit /b 0
+)
+"%CSC%" -nologo -target:winexe -optimize -out:"%~1\filedialog.exe" "%ROOT%\app\filedialog.cs" || exit /b 1
+exit /b 0
+
 rem Copies resources\app over the installed one: files are added or replaced,
 rem none removed (the installed copy has extra files).  Program Files is
 rem writable only by administrators, so without rights it asks for UAC.
+rem robocopy writes its summary (and any error) to a log, also when it runs
+rem elevated in a hidden window, and the log is printed at the end.
 :install
 set "SRC=%OUT%\resources\app"
 set "DST=%INSTALL%\resources\app"
-set "RC=/e /r:1 /w:1 /nfl /ndl /njh /njs /np"
+set "LOG=%TEMP%\circuitjs-install.log"
+set "RC=/e /r:1 /w:1 /nfl /ndl /njh /np /log:"%LOG%""
+echo === Copying to %DST%
 robocopy "%SRC%" "%DST%" %RC% >nul 2>&1
-if not errorlevel 8 goto installed
-echo === No write access to %INSTALL%: asking for administrator rights...
-powershell -NoProfile -Command "$q = [char]34; $a = '{0}{1}{0} {0}{2}{0} {3}' -f $q, $env:SRC, $env:DST, $env:RC; try { $p = Start-Process robocopy -ArgumentList $a -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop; exit $p.ExitCode } catch { exit 16 }"
-if errorlevel 8 (
-    echo Could not update %INSTALL%: UAC was declined or the copy failed.
+set "CODE=%errorlevel%"
+if %CODE% lss 8 goto installed
+echo No write access to %INSTALL%: asking for administrator rights...
+powershell -NoProfile -Command "$q = [char]34; $a = '{0}{1}{0} {0}{2}{0} {3}' -f $q, $env:SRC, $env:DST, $env:RC; try { $p = Start-Process robocopy -ArgumentList $a -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop; exit $p.ExitCode } catch { exit 99 }"
+set "CODE=%errorlevel%"
+if %CODE% equ 99 (
+    echo Could not update %INSTALL%: administrator rights were declined.
     exit /b 1
 )
 :installed
-echo === Updated %DST%: restart CircuitJS if it is open.
+rem the log is in the ANSI code page: PowerShell converts it for the console
+if exist "%LOG%" powershell -NoProfile -Command "Get-Content -LiteralPath $env:LOG | Where-Object { $_.Trim() -and $_ -notmatch '^-+$|/sec|/min' }"
+if %CODE% geq 8 (
+    echo === Copy failed ^(robocopy code %CODE%^): see the errors above.
+    exit /b 1
+)
+rem bit 1 of the robocopy code: some files were copied
+set /a "COPIED=CODE & 1"
+if %COPIED% equ 0 (
+    echo === %DST% was already up to date.
+) else (
+    echo === Updated %DST%: restart CircuitJS if it is open.
+)
 exit /b 0
 
 :serve

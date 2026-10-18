@@ -36,6 +36,8 @@
 		fmin: 10,
 		fmax: 100000,
 		yRange: 'auto',
+		yMax: 20,       // custom dB range (yRange 'custom')
+		yMin: -60,
 		offset: 0,
 		source: '',
 		output: ''
@@ -47,6 +49,7 @@
 
 	var STRINGS = {
 		en: {
+			custom: 'Custom', yMaxTip: 'Top of the dB scale', yMinTip: 'Bottom of the dB scale',
 			title: 'Bode Plot', mag: 'Magnitude', phase: 'Phase', input: 'Input', output: 'Output',
 			freq: 'Freq.', hold: 'Hold trace', holdTip: 'Freeze the current trace to compare it with later changes',
 			clear: 'Clear held', clearTip: 'Remove the held traces', csv: 'Copy CSV',
@@ -67,6 +70,7 @@
 				AntennaElm: 'Antenna', SweepElm: 'Sweep', AudioInputElm: 'Audio input', NoiseElm: 'Noise' }
 		},
 		it: {
+			custom: 'Personalizzato', yMaxTip: 'Valore massimo della scala in dB', yMinTip: 'Valore minimo della scala in dB',
 			title: 'Diagramma di Bode', mag: 'Modulo', phase: 'Fase', input: 'Ingresso', output: 'Uscita',
 			freq: 'Freq.', hold: 'Fissa curva', holdTip: 'Congela la curva attuale per confrontarla con le modifiche successive',
 			clear: 'Cancella fissate', clearTip: 'Rimuove le curve fissate', csv: 'Copia CSV',
@@ -102,6 +106,8 @@
 	(function () {
 		var s = load('settings', null);
 		if (s) for (var k in settings) if (s.hasOwnProperty(k)) settings[k] = s[k];
+		// the phase trace always starts hidden; it is shown only on request
+		settings.showPhase = false;
 	})();
 	function saveSettings() { save('settings', settings); }
 
@@ -193,7 +199,10 @@
 		'<label><span class="lbl">dB</span> <select id="selY">' +
 		'<option value="auto">Auto</option><option value="0,-48">0 … −48</option>' +
 		'<option value="12,-48">+12 … −48</option><option value="0,-80">0 … −80</option>' +
-		'<option value="40,-40">+40 … −40</option><option value="60,-60">+60 … −60</option></select></label>' +
+		'<option value="40,-40">+40 … −40</option><option value="60,-60">+60 … −60</option>' +
+		'<option value="custom">' + S.custom + '</option></select></label>' +
+		'<label id="lbYc"><input type="number" id="inYmax" step="1" title="' + S.yMaxTip + '"> … ' +
+		'<input type="number" id="inYmin" step="1" title="' + S.yMinTip + '"></label>' +
 		'<label><span class="lbl">Offset</span> <input type="number" id="inOff" step="0.5"> dB</label>' +
 		'<span class="sep"></span>' +
 		'<button id="btHold" title="' + S.holdTip + '">' + S.hold + '</button>' +
@@ -237,7 +246,8 @@
 		ui = {
 			doc: d, cv: $('cv'), wrap: $('wrap'), status: $('status'),
 			cbMag: $('cbMag'), cbPhase: $('cbPhase'), selSrc: $('selSrc'), selOut: $('selOut'),
-			selFmin: $('selFmin'), selFmax: $('selFmax'), selY: $('selY'), inOff: $('inOff')
+			selFmin: $('selFmin'), selFmax: $('selFmax'), selY: $('selY'), inOff: $('inOff'),
+			lbYc: $('lbYc'), inYmax: $('inYmax'), inYmin: $('inYmin')
 		};
 		lastSrcKey = lastOutKey = null;
 		FREQS_MIN.forEach(function (f) { addOpt(ui.selFmin, f, fmtFreq(f)); });
@@ -250,6 +260,9 @@
 		ui.selY.value = settings.yRange;
 		if (ui.selY.value === '') ui.selY.value = settings.yRange = 'auto';
 		ui.inOff.value = settings.offset;
+		ui.inYmax.value = settings.yMax;
+		ui.inYmin.value = settings.yMin;
+		ui.lbYc.style.display = settings.yRange === 'custom' ? '' : 'none';
 
 		function changed(recompute) {
 			settings.showMag = ui.cbMag.checked;
@@ -258,6 +271,10 @@
 			settings.fmax = +ui.selFmax.value;
 			settings.yRange = ui.selY.value;
 			settings.offset = parseFloat(ui.inOff.value) || 0;
+			var a = parseFloat(ui.inYmax.value), b = parseFloat(ui.inYmin.value);
+			if (isFinite(a)) settings.yMax = a;
+			if (isFinite(b)) settings.yMin = b;
+			ui.lbYc.style.display = settings.yRange === 'custom' ? '' : 'none';
 			settings.source = ui.selSrc.value;
 			settings.output = ui.selOut.value;
 			settings.sourceList = lastSrcKey;
@@ -266,7 +283,7 @@
 			if (recompute) { lastSweepTime = 0; tick(); } else draw();
 		}
 		ui.cbMag.onchange = ui.cbPhase.onchange = ui.selY.onchange = function () { changed(false); };
-		ui.inOff.oninput = function () { changed(false); };
+		ui.inOff.oninput = ui.inYmax.oninput = ui.inYmin.oninput = function () { changed(false); };
 		ui.selFmin.onchange = ui.selFmax.onchange = ui.selSrc.onchange = ui.selOut.onchange = function () { changed(true); };
 		$('btHold').onclick = function () {
 			if (!result || !result.f.length) return;
@@ -467,6 +484,10 @@
 			ymax = Math.ceil((hi + span * 0.08) / st) * st;
 			ymin = Math.floor((lo - span * 0.08) / st) * st;
 			if (ymax - ymin < 12) ymin = ymax - 12;
+		} else if (settings.yRange === 'custom') {
+			ymax = Math.max(settings.yMax, settings.yMin);
+			ymin = Math.min(settings.yMax, settings.yMin);
+			if (ymax - ymin < 1) ymin = ymax - 1;
 		} else {
 			var p = settings.yRange.split(',');
 			ymax = +p[0]; ymin = +p[1];

@@ -1423,7 +1423,7 @@ void showPlotValue(int val, boolean b) {
     }
     
     void onMouseWheel(MouseWheelEvent e) {
-        wheelDeltaY += e.getDeltaY()*app.mouse.wheelSensitivity;
+        wheelDeltaY += MouseManager.wheelDeltaY(e)*app.mouse.wheelSensitivity;
         if (wheelDeltaY > 5) {
             slowDown();
             wheelDeltaY = 0;

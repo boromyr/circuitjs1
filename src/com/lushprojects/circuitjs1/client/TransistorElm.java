@@ -90,12 +90,12 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	}
 	public void onMouseWheel(MouseWheelEvent e) {
 	    if (CirSim.typeScrollPopup != null && CirSim.typeScrollPopup.isShowing()) {
-		CirSim.typeScrollPopup.doDeltaY(e.getDeltaY());
+		CirSim.typeScrollPopup.doDeltaY(MouseManager.wheelDeltaY(e));
 		return;
 	    }
 	    CirSim.typeScrollPopup = new TypeScrollPopup(
 		e.getNativeEvent().getClientX(), e.getNativeEvent().getClientY(),
-		e.getDeltaY(), this, app);
+		MouseManager.wheelDeltaY(e), this, app);
 	}
 
 	int getDumpType() { return 't'; }

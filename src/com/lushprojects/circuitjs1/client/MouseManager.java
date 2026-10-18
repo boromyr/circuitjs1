@@ -1300,8 +1300,26 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	sim.repaint();
     }
 
+    // Wheel movement in the units of MouseWheelEvent.getDeltaY() (3 for a mouse
+    // notch) but not rounded: GWT returns Math.round(-wheelDelta/40), so the many
+    // small steps of a touchpad came out as 0 and were lost.
+    static double wheelDeltaY(MouseWheelEvent e) { return wheelDeltaY(e.getNativeEvent()); }
+
+    static native double wheelDeltaY(NativeEvent e) /*-{
+	if (e.wheelDelta)
+	    return -e.wheelDelta / 40;
+	if (!e.deltaY)
+	    return 0;
+	if (e.deltaMode == 1)		// lines
+	    return e.deltaY;
+	if (e.deltaMode == 2)		// pages
+	    return e.deltaY * 30;
+	return e.deltaY * .03;		// pixels (wheelDelta is 1.2 times deltaY)
+    }-*/;
+
     public void onMouseWheel(MouseWheelEvent e) {
     	e.preventDefault();
+    	double dy = wheelDeltaY(e);
 
     	// once we start zooming, don't allow other uses of mouse wheel for a while
     	// so we don't accidentally edit a resistor value while zooming
@@ -1311,7 +1329,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	    zoomOnly = true;
 
     	if (!zoomOnly)
-    	    scrollValues(e.getNativeEvent().getClientX(), e.getNativeEvent().getClientY(), e.getDeltaY());
+    	    scrollValues(e.getNativeEvent().getClientX(), e.getNativeEvent().getClientY(), dy);
 
     	if (sim.scopeManager.scopeSelected != -1)
     	    sim.scopeManager.scopes[sim.scopeManager.scopeSelected].onMouseWheel(e);
@@ -1320,7 +1338,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	else if (!sim.dialogIsShowing()) {
     	    mouseCursorX=e.getX();
     	    mouseCursorY=e.getY();
-    	    zoomCircuit(-e.getDeltaY()*wheelSensitivity, false);
+    	    zoomCircuit(-dy*wheelSensitivity, false);
     	    zoomTime = System.currentTimeMillis();
    	}
     	sim.repaint();
@@ -1352,7 +1370,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	sim.transform[5] = constY - cy*newScale;
     }
 
-    void scrollValues(int x, int y, int deltay) {
+    void scrollValues(int x, int y, double deltay) {
     	if (mouseElm!=null && !sim.dialogIsShowing() && sim.scopeManager.scopeSelected == -1)
     		if (mouseElm instanceof ResistorElm || mouseElm instanceof CapacitorElm ||  mouseElm instanceof InductorElm) {
     			sim.scrollValuePopup = new ScrollValuePopup(x, y, deltay, mouseElm, sim);

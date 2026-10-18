@@ -46,7 +46,7 @@ public class TypeScrollPopup extends PopupPanel implements MouseOutHandler, Mous
 	VerticalPanel vp;
 	double deltaY;
 
-	TypeScrollPopup(final int x, final int y, int dy, CircuitElm e, CirSim s) {
+	TypeScrollPopup(final int x, final int y, double dy, CircuitElm e, CirSim s) {
 		super();
 		myElm = e;
 		sim = s;
@@ -93,7 +93,7 @@ public class TypeScrollPopup extends PopupPanel implements MouseOutHandler, Mous
 		return Locale.LS("Transistor Type");
 	}
 
-	public void doDeltaY(int dy) {
+	public void doDeltaY(double dy) {
 		deltaY += dy;
 		// toggle on every 30px of scroll (similar to ScrollValuePopup sensitivity)
 		while (deltaY >= 30) {
@@ -152,7 +152,7 @@ public class TypeScrollPopup extends PopupPanel implements MouseOutHandler, Mous
 
 	public void onMouseWheel(MouseWheelEvent e) {
 		e.preventDefault();
-		doDeltaY(e.getDeltaY());
+		doDeltaY(MouseManager.wheelDeltaY(e));
 	}
 
 	public void onMouseDown(MouseDownEvent e) {
