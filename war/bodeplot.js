@@ -57,11 +57,10 @@
 			noSource: 'No voltage source: add one to use as the input.',
 			noOutput: 'No output: add a labeled node, an Output or a voltmeter.',
 			needIO: 'Needs a source as input and a labeled node as output',
-			notready: 'Waiting for the simulation...', singular: 'The circuit cannot be solved',
+			notready: 'Waiting for the circuit...', singular: 'The circuit cannot be solved',
 			disconnected: 'The output is not connected to the input',
-			ok: 'Small-signal AC analysis at the operating point (transistors, op-amps and other stages included), {n} points.',
-			averaged: 'Operating point averaged over one period of the input.',
-			paused: 'Simulation stopped: using the current operating point.',
+			ok: 'Small-signal AC analysis at the DC operating point (transistors, op-amps and other stages included), {n} points.',
+			transient: 'No DC operating point found: using the present state of the simulation.',
 			node: 'Node «{n}»', out: 'Output #{n}', probe: 'Voltmeter #{n}',
 			src: { VoltageElm: 'Source', DCVoltageElm: 'Source', ACVoltageElm: 'AC source', RailElm: 'Rail',
 				ACRailElm: 'AC rail', VarRailElm: 'Variable rail', SquareRailElm: 'Square rail', ClockElm: 'Clock',
@@ -78,11 +77,10 @@
 			noSource: 'Nessun generatore di tensione: aggiungine uno come ingresso.',
 			noOutput: 'Nessuna uscita: aggiungi un\'etichetta (Labeled Node), un Output o un voltmetro.',
 			needIO: 'Serve un generatore come ingresso e un nodo etichettato come uscita',
-			notready: 'In attesa della simulazione...', singular: 'Circuito non risolvibile',
+			notready: 'In attesa del circuito...', singular: 'Circuito non risolvibile',
 			disconnected: 'L\'uscita non è collegata all\'ingresso',
-			ok: 'Analisi AC di piccolo segnale nel punto di lavoro (transistor, operazionali e altri stadi inclusi), {n} punti.',
-			averaged: 'Punto di lavoro mediato su un periodo dell\'ingresso.',
-			paused: 'Simulazione ferma: uso il punto di lavoro attuale.',
+			ok: 'Analisi AC di piccolo segnale nel punto di lavoro DC (transistor, operazionali e altri stadi inclusi), {n} punti.',
+			transient: 'Punto di lavoro DC non trovato: uso lo stato attuale della simulazione.',
 			node: 'Nodo «{n}»', out: 'Uscita (Output) #{n}', probe: 'Voltmetro #{n}',
 			src: { VoltageElm: 'Generatore', DCVoltageElm: 'Generatore', ACVoltageElm: 'Generatore AC', RailElm: 'Rail',
 				ACRailElm: 'Rail AC', VarRailElm: 'Rail variabile', SquareRailElm: 'Rail onda quadra', ClockElm: 'Clock',
@@ -136,7 +134,7 @@
 			if (prev !== null) ph[i] -= 360 * Math.round((ph[i] - prev) / 360);
 			prev = ph[i];
 		}
-		return { f: r.f, db: db, ph: ph, averaged: r.averaged };
+		return { f: r.f, db: db, ph: ph, op: r.op };
 	}
 
 	// ------------------------------------------------------------------
@@ -262,6 +260,8 @@
 			settings.offset = parseFloat(ui.inOff.value) || 0;
 			settings.source = ui.selSrc.value;
 			settings.output = ui.selOut.value;
+			settings.sourceList = lastSrcKey;
+			settings.outputList = lastOutKey;
 			saveSettings();
 			if (recompute) { lastSweepTime = 0; tick(); } else draw();
 		}
@@ -328,17 +328,25 @@
 		updateStatus();
 	}
 
-	function syncSelect(sel, list, label, want, autoPick) {
+	// Fill a selector when the choices change.  The previous choice (in this window, or saved)
+	// is kept if it was made with these same choices, i.e. in the same circuit, or if keep(o)
+	// accepts it anyway; otherwise autoPick chooses (so a supply rail picked as the input of
+	// one circuit is not reused for the next one).
+	function syncSelect(sel, list, label, want, wantList, autoPick, keep) {
 		var key = list.map(function (o) { return o.key + '=' + label(o); }).join('|');
 		var prevKey = sel === ui.selSrc ? lastSrcKey : lastOutKey;
 		if (key !== prevKey) {
-			var cur = sel.value || want;
+			var cands = [sel.value, want];
 			sel.innerHTML = '';
 			if (!list.length) addOpt(sel, '', S.none);
 			list.forEach(function (o) { addOpt(sel, o.key, label(o)); });
-			var found = list.some(function (o) { return o.key === cur; });
-			if (!found && want && list.some(function (o) { return o.key === want; })) { cur = want; found = true; }
-			sel.value = found ? cur : (list.length ? autoPick(list).key : '');
+			var pick = null;
+			for (var c = 0; c < cands.length && !pick; c++)
+				list.forEach(function (o) {
+					if (!pick && cands[c] && o.key === cands[c] && (wantList === key || keep(o))) pick = o;
+				});
+			if (!pick && list.length) pick = autoPick(list);
+			sel.value = pick ? pick.key : '';
 			if (sel === ui.selSrc) lastSrcKey = key; else lastOutKey = key;
 		}
 		return sel.value;
@@ -367,10 +375,15 @@
 		lastSweepTime = now;
 		try {
 			targets = sim.getACTargets();
-			var srcKey = syncSelect(ui.selSrc, targets.sources, sourceLabel, settings.source, pickSource);
-			var outKey = syncSelect(ui.selOut, targets.outputs, outputLabel, settings.output, pickOutput);
-			if (srcKey !== settings.source || outKey !== settings.output) {
-				settings.source = srcKey; settings.output = outKey; saveSettings();
+			var srcKey = syncSelect(ui.selSrc, targets.sources, sourceLabel, settings.source, settings.sourceList,
+				pickSource, function (o) { return o.ac; });
+			var outKey = syncSelect(ui.selOut, targets.outputs, outputLabel, settings.output, settings.outputList,
+				pickOutput, function () { return true; });
+			if (srcKey !== settings.source || outKey !== settings.output ||
+					lastSrcKey !== settings.sourceList || lastOutKey !== settings.outputList) {
+				settings.source = srcKey; settings.output = outKey;
+				settings.sourceList = lastSrcKey; settings.outputList = lastOutKey;
+				saveSettings();
 			}
 			var prevResult = result;
 			result = null; error = null;
@@ -378,8 +391,8 @@
 				var t0 = Date.now();
 				var r = sweep(srcKey, outKey);
 				// keep the sweep cost to a small fraction of the time on large circuits
-				interval = Math.max(400, 8 * (Date.now() - t0));
-				// while the simulation runs, the first result is ready after one period of the input
+				interval = Math.max(200, 8 * (Date.now() - t0));
+				// keep the last plot while the circuit is being rebuilt
 				if (r.error === 'notready' && prevResult) result = prevResult;
 				else if (r.error) error = r.error; else result = r;
 			}
@@ -402,7 +415,7 @@
 			if (error && S[error]) parts.push('<b>' + S[error] + '</b>');
 			if (!parts.length && result) {
 				parts.push(fmt(S.ok, NPOINTS));
-				parts.push(sim.isRunning() ? (result.averaged ? S.averaged : '') : S.paused);
+				if (result.op === 'transient') parts.push(S.transient);
 			}
 			msg = parts.join(' &nbsp; ');
 		}

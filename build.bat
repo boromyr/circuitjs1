@@ -3,6 +3,7 @@ rem Builds CircuitJS1 on Windows.
 rem
 rem   build.bat            compile GWT and assemble the web site in site\
 rem   build.bat electron   ...then package the offline app in offline\CircuitJS1-win32-x64
+rem                        and update the installed copy in %INSTALL% (if present)
 rem   build.bat serve      serve site\ on http://localhost:8000 (needs Python)
 rem
 rem Uses the portable JDK 8 and Gradle home in .tools\ when present, otherwise
@@ -14,6 +15,7 @@ set "TOOLS=%ROOT%\.tools"
 set "ELECTRON_VERSION=v44.9.0"
 set "ELECTRON_ZIP=%TOOLS%\dl\electron-%ELECTRON_VERSION%-win32-x64.zip"
 set "OUT=%ROOT%\offline\CircuitJS1-win32-x64"
+set "INSTALL=C:\Program Files\CircuitJS"
 
 set "TARGET=%~1"
 if "%TARGET%"=="" set "TARGET=site"
@@ -75,6 +77,26 @@ if exist "%TOOLS%\portable.js" (
 rem zip without the portable profile
 powershell -NoProfile -ExecutionPolicy Bypass -File "%TOOLS%\zip-app.ps1" -Folder "%OUT%" -Zip "%ROOT%\offline\CircuitJS1-%VERSION%-win32-x64.zip" || goto fail
 echo === Done: %OUT%\CircuitJS1.exe and offline\CircuitJS1-%VERSION%-win32-x64.zip
+if exist "%INSTALL%\resources\app" call :install || goto fail
+exit /b 0
+
+rem Copies resources\app over the installed one: files are added or replaced,
+rem none removed (the installed copy has extra files).  Program Files is
+rem writable only by administrators, so without rights it asks for UAC.
+:install
+set "SRC=%OUT%\resources\app"
+set "DST=%INSTALL%\resources\app"
+set "RC=/e /r:1 /w:1 /nfl /ndl /njh /njs /np"
+robocopy "%SRC%" "%DST%" %RC% >nul 2>&1
+if not errorlevel 8 goto installed
+echo === No write access to %INSTALL%: asking for administrator rights...
+powershell -NoProfile -Command "$q = [char]34; $a = '{0}{1}{0} {0}{2}{0} {3}' -f $q, $env:SRC, $env:DST, $env:RC; try { $p = Start-Process robocopy -ArgumentList $a -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop; exit $p.ExitCode } catch { exit 16 }"
+if errorlevel 8 (
+    echo Could not update %INSTALL%: UAC was declined or the copy failed.
+    exit /b 1
+)
+:installed
+echo === Updated %DST%: restart CircuitJS if it is open.
 exit /b 0
 
 :serve

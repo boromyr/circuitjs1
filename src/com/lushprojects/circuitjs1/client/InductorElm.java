@@ -108,6 +108,9 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 	    current = ind.calculateCurrent(voltdiff);
 	}
 	void doStep() {
+	    // at the DC operating point the inductor is a short (see ACAnalysis), with no history current
+	    if (doDcAnalysis())
+		return;
 	    double voltdiff = volts[0]-volts[1];
 	    ind.doStep(voltdiff);
 	}

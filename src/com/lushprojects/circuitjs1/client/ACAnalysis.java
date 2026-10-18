@@ -23,24 +23,23 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Vector;
 
-// Small-signal AC analysis (frequency response) of the running circuit, used by the
-// Bode plot window (war/bodeplot.js).
+// Small-signal AC analysis (frequency response) of the circuit, used by the Bode plot
+// window (war/bodeplot.js).
 //
-// The circuit is linearized at its operating point using the matrix the simulator
-// already builds: after a converged timestep, the matrix of a nonlinear circuit is the
-// Newton Jacobian, so transistors, JFETs, diodes, op-amps etc. are all included with
-// their small-signal parameters.  The only frequency-dependent parts of that matrix are
-// the companion models of reactive elements (conductances like 2C/dt or dt/2L); each
-// such element replaces its companion with the real admittance (jwC, 1/jwL) in
-// CircuitElm.stampAC().  The input source gets an AC amplitude of 1, all other
-// independent sources are AC-shorted (voltage) or open (current).
+// As in SPICE, the circuit is linearized at its DC operating point: capacitors open,
+// inductors shorted, every source at its DC value (an AC source at its offset).  The
+// operating point is found with a private Newton solve that runs the elements' own doStep()
+// with CirSim.dcAnalysisFlag set, so it does not depend on the transient simulation: not on
+// its speed, nor on whether it is running, nor on where the input signal happens to be.
+// The transient state is put back afterwards.
 //
-// When the input is large (e.g. a 1V sine into a tone stack followed by a JFET stage),
-// the operating point moves during the signal period, so while the plot is open the
-// Jacobian of a nonlinear circuit is averaged over one period of the input source to get
-// a stable result.  The companion conductances are removed from each sample before it is
-// averaged, so the average does not depend on the timestep (which the simulator may change
-// while it runs).
+// At that operating point the matrix the simulator builds is the Newton Jacobian, so
+// transistors, JFETs, diodes, op-amps etc. are all included with their small-signal
+// parameters.  The only frequency-dependent parts of it are the companion models of
+// reactive elements (conductances like 2C/dt or dt/2L); each such element replaces its
+// companion with the real admittance (jwC, 1/jwL) in CircuitElm.stampAC().  The input
+// source gets an AC amplitude of 1, all other independent sources are AC-shorted
+// (voltage) or open (current).
 class ACAnalysis {
     SimulationManager sim;
 
@@ -49,9 +48,13 @@ class ACAnalysis {
     }
 
     // ---- AC stamps collected from reactive elements: A[i][j] += a + j*(b*w + d/w)
+    // A companion stamped in stamp() (capacitors, inductors, transformers) is STATIC: it is
+    // in origMatrix.  The junction capacitance of a semiconductor is stamped in doStep(),
+    // and not at all at the DC operating point.
+    static final int STATIC = 0, JUNCTION = 1;
     CircuitMatrix acMatrix;
-    int stCount;
-    int stI[] = new int[64], stJ[] = new int[64];
+    int stCount, kind;
+    int stI[] = new int[64], stJ[] = new int[64], stK[] = new int[64];
     double stA[] = new double[64], stB[] = new double[64], stD[] = new double[64];
 
     void add(CircuitNode i, CircuitNode j, double a, double b, double d) {
@@ -59,15 +62,16 @@ class ACAnalysis {
 	    return;
 	if (stCount == stI.length) {
 	    int n = stCount*2;
-	    int ni[] = new int[n], nj[] = new int[n];
+	    int ni[] = new int[n], nj[] = new int[n], nk[] = new int[n];
 	    double na[] = new double[n], nb[] = new double[n], nd[] = new double[n];
 	    for (int k = 0; k != stCount; k++) {
-		ni[k] = stI[k]; nj[k] = stJ[k]; na[k] = stA[k]; nb[k] = stB[k]; nd[k] = stD[k];
+		ni[k] = stI[k]; nj[k] = stJ[k]; nk[k] = stK[k]; na[k] = stA[k]; nb[k] = stB[k]; nd[k] = stD[k];
 	    }
-	    stI = ni; stJ = nj; stA = na; stB = nb; stD = nd;
+	    stI = ni; stJ = nj; stK = nk; stA = na; stB = nb; stD = nd;
 	}
 	stI[stCount] = i.row-1;
 	stJ[stCount] = j.row-1;
+	stK[stCount] = kind;
 	stA[stCount] = a;
 	stB[stCount] = b;
 	stD[stCount] = d;
@@ -93,107 +97,220 @@ class ACAnalysis {
 	admittance(p, q, -g, c, 0);
     }
 
+    // same for the junction capacitance of a semiconductor
+    void junctionCapacitor(CircuitNode p, CircuitNode q, double g, double c) {
+	kind = JUNCTION;
+	admittance(p, q, -g, c, 0);
+	kind = STATIC;
+    }
+
     // replace an inductor companion conductance g with 1/(jwL) = -j/(wL)
     void inductor(CircuitNode p, CircuitNode q, double g, double l) {
 	admittance(p, q, -g, 0, -1/l);
     }
 
-    // ---- Jacobian (without companion conductances) averaged over the input period while the plot is open
-    long lastRequest;
-    CircuitMatrix avgMatrix;
-    double avgStart, avgWindow;
-    double avgSum[][], avgJ[][];
-    int avgCount;
-
     // collect the AC stamps of all elements for matrix m
     void collectStamps(CircuitMatrix m) {
 	acMatrix = m;
 	stCount = 0;
+	kind = STATIC;
 	for (int i = 0; i != sim.elmList.size(); i++)
 	    sim.elmList.get(i).stampAC(this);
 	acMatrix = null;
     }
 
-    boolean capturing() {
-	return avgMatrix != null && System.currentTimeMillis() - lastRequest < 3000;
-    }
-
-    // called by SimulationManager.runCircuit() after a timestep has converged
-    void stepConverged() {
-	if (!capturing())
-	    return;
-	CircuitMatrix m = avgMatrix;
-	// a linear matrix does not depend on the operating point, nothing to average
-	if (!m.nonLinear)
-	    return;
-	// after the last (converged) subiteration a nonlinear matrix is left unfactored,
-	// so it holds the Jacobian
-	double j[][] = m.matrix;
-	if (avgSum == null || avgSum.length != m.size) {
-	    avgSum = new double[m.size][m.size];
-	    avgJ = null;
-	    avgCount = 0;
-	    avgStart = sim.t;
-	}
-	int i, k;
-	for (i = 0; i != m.size; i++) {
-	    double s[] = avgSum[i], r[] = j[i];
-	    for (k = 0; k != m.size; k++)
-		s[k] += r[k];
-	}
-	// remove the companion conductances of this timestep
-	collectStamps(m);
-	for (k = 0; k != stCount; k++)
-	    avgSum[stI[k]][stJ[k]] += stA[k];
-	avgCount++;
-	if (sim.t + sim.timeStep - avgStart >= avgWindow) {
-	    avgJ = scaled(avgSum, 1.0/avgCount);
-	    for (i = 0; i != m.size; i++)
-		for (k = 0; k != m.size; k++)
-		    avgSum[i][k] = 0;
-	    avgCount = 0;
-	    avgStart = sim.t + sim.timeStep;
-	}
-    }
-
-    static double[][] scaled(double a[][], double f) {
-	int n = a.length;
-	double r[][] = new double[n][n];
-	for (int i = 0; i != n; i++)
-	    for (int k = 0; k != n; k++)
-		r[i][k] = a[i][k]*f;
+    // (GWT has no clone() for arrays)
+    static double[] copyOf(double a[]) {
+	double r[] = new double[a.length];
+	for (int i = 0; i != a.length; i++)
+	    r[i] = a[i];
 	return r;
     }
 
-    // linearize the circuit now (used when there is no captured Jacobian, e.g. when the
-    // simulation is stopped).  Re-runs doStep() into scratch matrices; doStep() is safe to call
-    // again because the simulator already calls it once per Newton subiteration.
+    static double[][] copyOf(double a[][]) {
+	int n = a.length;
+	double r[][] = new double[n][];
+	for (int i = 0; i != n; i++)
+	    r[i] = copyOf(a[i]);
+	return r;
+    }
+
+    // Run doStep() of all elements into scratch copies of the matrices and return the copy of
+    // target (its right side is left in lastRhs).  doStep() is safe to call again because the
+    // simulator already calls it once per Newton subiteration.
+    double lastRhs[];
     double[][] linearizeNow(CircuitMatrix target) {
 	CircuitMatrix ms[] = sim.matrices;
 	double saveMat[][][] = new double[ms.length][][];
 	double saveRhs[][] = new double[ms.length][];
-	boolean saveConverged = sim.converged;
 	int i;
 	for (i = 0; i != ms.length; i++) {
 	    CircuitMatrix m = ms[i];
 	    saveMat[i] = m.matrix;
 	    saveRhs[i] = m.rightSide;
-	    m.matrix = scaled(m.origMatrix, 1);
-	    m.rightSide = new double[m.size];
+	    m.matrix = copyOf(m.origMatrix);
+	    m.rightSide = copyOf(m.origRightSide);
 	}
 	double j[][] = null;
 	try {
 	    for (i = 0; i != sim.elmArr.length; i++)
 		sim.elmArr[i].doStep();
 	    j = target.matrix;
+	    lastRhs = target.rightSide;
 	} finally {
 	    for (i = 0; i != ms.length; i++) {
 		ms[i].matrix = saveMat[i];
 		ms[i].rightSide = saveRhs[i];
 	    }
+	}
+	return j;
+    }
+
+    // ---- DC operating point
+
+    // an inductor shorted at DC gets a conductance of DC_INDUCTOR_TIME/L
+    static final double DC_INDUCTOR_TIME = 100;
+
+    // all elements, including the children of subcircuits (which are linked to nodes directly)
+    static void allElements(Vector<CircuitElm> list, Vector<CircuitElm> out) {
+	for (int i = 0; i != list.size(); i++) {
+	    CircuitElm ce = list.get(i);
+	    out.add(ce);
+	    Vector<CircuitElm> ch = ce.getChildElmList();
+	    if (ch != null)
+		allElements(ch, out);
+	}
+    }
+
+    // Find the DC operating point of matrix m and return the Jacobian there (with the
+    // companion conductances still in it), or null if the Newton solve does not converge.
+    // The element state (node voltages and currents) is put back as it was.
+    double[][] operatingPointJacobian(CircuitMatrix m) {
+	CircuitMatrix ms[] = sim.matrices;
+	Vector<CircuitElm> elms = new Vector<CircuitElm>();
+	allElements(sim.elmList, elms);
+	int ne = elms.size();
+	double saveVolts[][] = new double[ne][];
+	double saveCur[] = new double[ne];
+	int i, k;
+	for (i = 0; i != ne; i++) {
+	    CircuitElm ce = elms.get(i);
+	    saveVolts[i] = (ce.volts == null) ? null : copyOf(ce.volts);
+	    saveCur[i] = ce.current;
+	}
+	double saveSol[][] = new double[ms.length][];
+	for (i = 0; i != ms.length; i++)
+	    saveSol[i] = copyOf(ms[i].rightSide);
+	boolean saveConverged = sim.converged;
+	boolean saveDc = sim.app.dcAnalysisFlag;
+
+	// companions to take out of the matrix: capacitors open, inductors shorted
+	collectStamps(m);
+	int nst = stCount;
+	int dI[] = new int[nst], dJ[] = new int[nst];
+	double dA[] = new double[nst], dD[] = new double[nst];
+	boolean dStatic[] = new boolean[nst];
+	for (k = 0; k != nst; k++) {
+	    dI[k] = stI[k]; dJ[k] = stJ[k]; dA[k] = stA[k]; dD[k] = stD[k];
+	    dStatic[k] = stK[k] == STATIC;
+	}
+
+	int n = m.size;
+	double j[][] = null;
+	try {
+	    sim.app.dcAnalysisFlag = true;
+	    boolean ok = false;
+	    double ar[] = new double[n*n], ai[] = new double[n*n], br[] = new double[n], bi[] = new double[n];
+	    for (int iter = 0; iter != 200; iter++) {
+		// elements clear converged when their voltages moved since the last iteration
+		sim.converged = true;
+		double jm[][] = linearizeNow(m);
+		double rhs[] = lastRhs;
+		if (sim.converged && iter > 0) {
+		    ok = true;
+		    break;
+		}
+		for (int r = 0; r != n; r++) {
+		    for (int c = 0; c != n; c++) {
+			ar[r*n+c] = jm[r][c];
+			ai[r*n+c] = 0;
+		    }
+		    br[r] = rhs[r];
+		    bi[r] = 0;
+		}
+		for (k = 0; k != nst; k++) {
+		    int idx = dI[k]*n+dJ[k];
+		    // remove the companion conductance from origMatrix (a capacitor is then open)...
+		    if (dStatic[k])
+			ar[idx] += dA[k];
+		    // ...and short inductive parts, like a companion with dt = DC_INDUCTOR_TIME
+		    if (dD[k] != 0)
+			ar[idx] -= dD[k]*DC_INDUCTOR_TIME;
+		}
+		for (int r = 0; r != m.nodeCount; r++)
+		    ar[r*n+r] += 1e-12;
+		if (!solveComplex(ar, ai, br, bi, n))
+		    break;
+		double save[] = m.rightSide;
+		m.rightSide = br;
+		sim.applySolvedRightSide(m);
+		m.rightSide = save;
+	    }
+	    sim.app.dcAnalysisFlag = saveDc;
+	    if (ok)
+		j = linearizeNow(m);
+	} finally {
+	    sim.app.dcAnalysisFlag = saveDc;
+	    restoreState(elms, saveVolts, saveCur, saveSol);
 	    sim.converged = saveConverged;
 	}
 	return j;
+    }
+
+    void restoreState(Vector<CircuitElm> elms, double saveVolts[][], double saveCur[], double saveSol[][]) {
+	int i, k;
+	for (i = 0; i != elms.size(); i++) {
+	    CircuitElm ce = elms.get(i);
+	    if (saveVolts[i] != null)
+		for (k = 0; k != saveVolts[i].length; k++)
+		    ce.volts[k] = saveVolts[i][k];
+	}
+	// set the node voltages again the way the simulator does after a solve, so values derived
+	// from them (like the currents of inductors and transformers) are recomputed as well
+	CircuitMatrix ms[] = sim.matrices;
+	for (int mi = 0; mi != ms.length; mi++) {
+	    CircuitMatrix m = ms[mi];
+	    for (k = 0; k != m.nodeList.size(); k++) {
+		CircuitNode cn = m.nodeList.get(k);
+		if (cn.links.size() == 0)
+		    continue;
+		CircuitNodeLink l0 = cn.links.elementAt(0);
+		double v = l0.elm.volts[l0.num];
+		m.nodeVoltages[cn.row-1] = v;
+		for (int li = 0; li != cn.links.size(); li++) {
+		    CircuitNodeLink cnl = cn.links.elementAt(li);
+		    cnl.elm.setNodeVoltage(cnl.num, v);
+		}
+	    }
+	    // currents of voltage sources, from the last solution (if there has been one)
+	    double sol[] = saveSol[mi];
+	    boolean solved = false;
+	    for (k = 0; k != sol.length; k++)
+		if (sol[k] != 0)
+		    solved = true;
+	    if (solved)
+		for (k = 0; k != m.voltageSourceList.size(); k++) {
+		    VoltageSource vs = m.voltageSourceList.get(k);
+		    vs.elm.setCurrent(vs, sol[vs.row-1]);
+		}
+	    m.rightSide = sol;
+	}
+	for (i = 0; i != elms.size(); i++)
+	    elms.get(i).current = saveCur[i];
+	// re-run doStep() at the restored voltages, so the state some elements keep from it (the
+	// last junction voltages used to limit Newton steps, displayed currents) matches again
+	if (ms.length > 0)
+	    linearizeNow(ms[0]);
     }
 
     // ---- sources and outputs
@@ -303,7 +420,9 @@ class ACAnalysis {
     }
 
     String sweepJSON(String srcKey, String outKey, double fmin, double fmax, int npts) {
-	lastRequest = System.currentTimeMillis();
+	// a change made while the simulation is stopped is otherwise only stamped when it restarts
+	if (sim.needsStamp && sim.matrices != null)
+	    sim.preStampAndStampCircuit();
 	if (sim.matrices == null || sim.elmArr == null)
 	    return error("notready");
 	Target src = find(getSources(), srcKey);
@@ -322,28 +441,21 @@ class ACAnalysis {
 	if (!aIn && !bIn)
 	    return error("disconnected");
 
-	// averaging window: one period of the input source (at least a few timesteps)
-	double window = (src.freq > 0) ? 1/src.freq : 0;
-	window = Math.min(Math.max(window, 4*sim.timeStep), 1);
-	if (avgMatrix != m || avgWindow != window) {
-	    avgMatrix = m;
-	    avgWindow = window;
-	    avgSum = avgJ = null;
-	}
-	// j: linearized matrix; withCompanions: it still contains the companion conductances
+	// j: linearized matrix (still with the companion conductances, replaced below).  A
+	// linear matrix does not depend on the operating point.
 	double j[][];
-	boolean averaged = false, withCompanions = true;
+	String op = "linear";
 	if (!m.nonLinear)
 	    j = m.origMatrix;
-	else if (avgJ != null && avgJ.length == m.size) {
-	    j = avgJ;
-	    averaged = true;
-	    withCompanions = false;
-	} else if (sim.app.simIsRunning())
-	    // the first average is ready after one period of the input
-	    return error("notready");
-	else
-	    j = linearizeNow(m);
+	else {
+	    j = operatingPointJacobian(m);
+	    op = "dc";
+	    if (j == null) {
+		// no DC solution found: use the present (transient) state
+		j = linearizeNow(m);
+		op = "transient";
+	    }
+	}
 
 	// reactive elements: replace companion models with their admittances
 	collectStamps(m);
@@ -375,8 +487,7 @@ class ACAnalysis {
 		are[r*n+r] += 1e-12;
 	    for (int k = 0; k != stCount; k++) {
 		int idx = stI[k]*n+stJ[k];
-		if (withCompanions)
-		    are[idx] += stA[k];
+		are[idx] += stA[k];
 		aim[idx] += stB[k]*w + stD[k]/w;
 	    }
 	    bre[vrow] = 1;
@@ -400,7 +511,7 @@ class ACAnalysis {
 	}
 	if (bad == npts)
 	    return error("singular");
-	return "{\"ok\":true,\"averaged\":" + averaged + ",\"size\":" + n +
+	return "{\"ok\":true,\"op\":" + quote(op) + ",\"size\":" + n +
 	    ",\"f\":[" + fs + "],\"db\":[" + dbs + "],\"ph\":[" + phs + "]}";
     }
 

@@ -1412,7 +1412,6 @@ public class SimulationManager {
 		goodIterations++;
 	    else
 		goodIterations = 0;
-	    acAnalysis.stepConverged();
 	    t += timeStep;
 	    timeStepAccum += timeStep;
 	    if (timeStepAccum >= maxTimeStep) {

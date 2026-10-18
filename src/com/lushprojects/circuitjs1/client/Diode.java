@@ -120,7 +120,7 @@ class Diode {
     // junction capacitance companion (trapezoidal, geqCap = 2C/dt) -> jwC
     void stampAC(ACAnalysis ac) {
 	if (geqCap > 0)
-	    ac.capacitor(nodes[0], nodes[1], geqCap, geqCap*sim.timeStep/2);
+	    ac.junctionCapacitor(nodes[0], nodes[1], geqCap, geqCap*sim.timeStep/2);
     }
 
     void stepFinished(double voltdiff) {
@@ -212,8 +212,8 @@ class Diode {
 	    double nc = (eval-1)*leakage - geq*voltdiff;
 	    sim.stampConductance(nodes[0], nodes[1], geq);
 	    sim.stampCurrentSource(nodes[0], nodes[1], nc);
-	    // junction capacitance companion model
-	    if (geqCap > 0) {
+	    // junction capacitance companion model (open at the DC operating point)
+	    if (geqCap > 0 && !CirSim.theApp.dcAnalysisFlag) {
 		sim.stampConductance(nodes[0], nodes[1], geqCap);
 		sim.stampCurrentSource(nodes[0], nodes[1], ceqCap);
 	    }
@@ -243,8 +243,8 @@ class Diode {
 
 	    sim.stampConductance(nodes[0], nodes[1], geq);
 	    sim.stampCurrentSource(nodes[0], nodes[1],  nc);
-	    // junction capacitance companion model
-	    if (geqCap > 0) {
+	    // junction capacitance companion model (open at the DC operating point)
+	    if (geqCap > 0 && !CirSim.theApp.dcAnalysisFlag) {
 		sim.stampConductance(nodes[0], nodes[1], geqCap);
 		sim.stampCurrentSource(nodes[0], nodes[1], ceqCap);
 	    }

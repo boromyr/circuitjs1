@@ -341,9 +341,9 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	// junction capacitance companions (trapezoidal, geq = 2C/dt) -> jwC
 	void stampAC(ACAnalysis ac) {
 	    if (geqBE > 0)
-		ac.capacitor(nodes[0], nodes[2], geqBE, geqBE*sim.timeStep/2);
+		ac.junctionCapacitor(nodes[0], nodes[2], geqBE, geqBE*sim.timeStep/2);
 	    if (geqBC > 0)
-		ac.capacitor(nodes[0], nodes[1], geqBC, geqBC*sim.timeStep/2);
+		ac.junctionCapacitor(nodes[0], nodes[1], geqBC, geqBC*sim.timeStep/2);
 	}
 
 	void stamp() {
@@ -516,7 +516,8 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 	    // with a current source (Ceq), using trapezoidal integration.
 	    // This is identical to how CapacitorElm works, but embedded inside
 	    // the transistor and with voltage-dependent capacitance.
-	    if (geqBE > 0) {
+	    // (the junction caps are open at the DC operating point)
+	    if (geqBE > 0 && !doDcAnalysis()) {
 		// BE junction cap: conductance between base (node 0) and emitter (node 2)
 		sim.stampMatrix(nodes[0], nodes[0],  geqBE);
 		sim.stampMatrix(nodes[2], nodes[2],  geqBE);
@@ -526,7 +527,7 @@ class TransistorElm extends CircuitElm implements MouseWheelHandler {
 		sim.stampRightSide(nodes[0], -ceqBE);
 		sim.stampRightSide(nodes[2],  ceqBE);
 	    }
-	    if (geqBC > 0) {
+	    if (geqBC > 0 && !doDcAnalysis()) {
 		// BC junction cap: conductance between base (node 0) and collector (node 1)
 		sim.stampMatrix(nodes[0], nodes[0],  geqBC);
 		sim.stampMatrix(nodes[1], nodes[1],  geqBC);

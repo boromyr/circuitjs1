@@ -40,6 +40,8 @@ public abstract class CircuitElm implements Editable {
     static int colorScaleCount = 201; // odd so ground = gray 
     static Color colorScale[];
     static double currentMult, powerMult;
+    // milliseconds since the last frame, negative for electron flow (set with currentMult)
+    static double dotTimeStep;
     
     // scratch points for convenience
     static Point ps1, ps2;
@@ -479,6 +481,9 @@ public abstract class CircuitElm implements Editable {
     int snapGrid(int z) { return app.snapGrid(z); }
 
     final int CURRENT_TOO_FAST = 100;
+    // dot speed scale (pixels per millisecond), exponent of the speed
+    // curve above it, and the knee current at the default slider value
+    static final double DOT_SPEED = .0134, DOT_EXP = .2, DOT_KNEE = 1e-6;
 
     // draw current dots from point a to b
     void drawDots(Graphics g, Point pa, Point pb, double pos) {
@@ -1167,7 +1172,15 @@ public abstract class CircuitElm implements Editable {
   
 	 if (!app.simIsRunning())
 	    return cc;
-	double cadd = cur*currentMult;
+	// the dot speed grows with a low power of the current (between linear and
+	// logarithmic), so a branch carrying 1000 times the current of another moves
+	// about 5 times faster instead of being a blur.  Below DOT_KNEE (scaled by
+	// the Current Speed slider) the speed is still proportional to the current,
+	// so leakage currents keep looking still.
+	double a = Math.abs(cur)*currentMult;
+	double cadd = dotTimeStep*DOT_SPEED*(Math.pow(1+a/DOT_KNEE, DOT_EXP)-1);
+	if (cur < 0)
+	    cadd = -cadd;
 	if (cadd > 6 || cadd < -6)
 	    return CURRENT_TOO_FAST;
 	if (cc == CURRENT_TOO_FAST)

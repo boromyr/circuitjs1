@@ -51,6 +51,14 @@ table {
 	color: inherit;
 }
 
+/*
+ * The circuit canvas takes the keyboard focus when clicked (tabindex=0), and with
+ * color-scheme: dark Chromium draws its focus ring as a light frame around it.
+ */
+canvas:focus, canvas:focus-visible {
+	outline: none;
+}
+
 /* ---- GWT "clean" theme overrides ---- */
 
 /*

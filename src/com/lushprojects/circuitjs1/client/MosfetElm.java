@@ -551,9 +551,9 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	// gate capacitance companions (backward euler, geq = C/dt) -> jwC
 	void stampAC(ACAnalysis ac) {
 	    if (model.capGS > 0 && geqGS > 0)
-		ac.capacitor(nodes[0], nodes[1], geqGS, model.capGS);
+		ac.junctionCapacitor(nodes[0], nodes[1], geqGS, model.capGS);
 	    if (model.capGD > 0 && geqGD > 0)
-		ac.capacitor(nodes[0], nodes[2], geqGD, model.capGD);
+		ac.junctionCapacitor(nodes[0], nodes[2], geqGD, model.capGD);
 	}
 
 	void stepFinished() {
@@ -684,8 +684,8 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    // gate capacitance companion model stamps (backward euler; avoids the
 	    // oscillatory behavior trapezoidal integration can cause when RC is
 	    // small relative to the timestep)
-	    // Cgs between gate (node 0) and node 1
-	    if (model.capGS > 0 && geqGS > 0) {
+	    // Cgs between gate (node 0) and node 1 (both are open at the DC operating point)
+	    if (model.capGS > 0 && geqGS > 0 && !doDcAnalysis()) {
 		sim.stampMatrix(nodes[0], nodes[0],  geqGS);
 		sim.stampMatrix(nodes[1], nodes[1],  geqGS);
 		sim.stampMatrix(nodes[0], nodes[1], -geqGS);
@@ -694,7 +694,7 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 		sim.stampRightSide(nodes[1],  ceqGS);
 	    }
 	    // Cgd between gate (node 0) and node 2
-	    if (model.capGD > 0 && geqGD > 0) {
+	    if (model.capGD > 0 && geqGD > 0 && !doDcAnalysis()) {
 		sim.stampMatrix(nodes[0], nodes[0],  geqGD);
 		sim.stampMatrix(nodes[2], nodes[2],  geqGD);
 		sim.stampMatrix(nodes[0], nodes[2], -geqGD);

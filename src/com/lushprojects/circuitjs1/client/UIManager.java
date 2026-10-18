@@ -635,9 +635,8 @@ public class UIManager {
                 int inc = (int) (sysTime - lastTime);
                 double c = currentBar.getValue();
                 c = java.lang.Math.exp(c / 3.5 - 14.2);
-                CircuitElm.currentMult = 1.7 * inc * c;
-                if (!menus.conventionCheckItem.getState())
-                    CircuitElm.currentMult = -CircuitElm.currentMult;
+                CircuitElm.currentMult = c;
+                CircuitElm.dotTimeStep = menus.conventionCheckItem.getState() ? inc : -inc;
             }
             lastTime = sysTime;
         } else {
@@ -1046,6 +1045,25 @@ public class UIManager {
 	return !!evt.repeat;
     }-*/;
 
+    private static native boolean isTextFieldFocused() /*-{
+	var e = $doc.activeElement;
+	if (!e) return false;
+	var t = e.tagName;
+	return t == "INPUT" || t == "TEXTAREA" || t == "SELECT" || e.isContentEditable;
+    }-*/;
+
+    // true if the space bar is the keyboard shortcut of a switch or of a menu item
+    boolean spaceIsAssigned() {
+	if (app.shortcuts.get(32) != null)
+	    return true;
+	for (int i = 0; i != elmList.size(); i++) {
+	    CircuitElm ce = elmList.get(i);
+	    if (ce instanceof SwitchElm && " ".equals(((SwitchElm) ce).keyShortcut))
+		return true;
+	}
+	return false;
+    }
+
     public void onPreviewNativeEvent(NativePreviewEvent e) {
     	int cc=e.getNativeEvent().getCharCode();
     	int t=e.getTypeInt();
@@ -1133,6 +1151,18 @@ public class UIManager {
 		}
     	}
 
+    	// space bar: run / stop the simulation, unless it was assigned to something else.  Handled
+    	// on keydown and cancelled there, so a focused button (like RUN/Stop itself) doesn't
+    	// get clicked by it as well.
+    	if ((t & Event.ONKEYDOWN) != 0 && code == KEY_SPACE && !isTextFieldFocused() &&
+    		!e.getNativeEvent().getCtrlKey() && !e.getNativeEvent().getAltKey() &&
+    		!e.getNativeEvent().getMetaKey() && !spaceIsAssigned()) {
+    	    if (!isRepeatEvent(e.getNativeEvent()))
+    		app.commands.menuPerformed("key", "runstop");
+    	    e.cancel();
+    	    return;
+    	}
+
     	if (isReadOnly())
     	    return;
 
@@ -1177,7 +1207,12 @@ public class UIManager {
     			e.cancel();
     		}
 
-    		if (code==KEY_LEFT || code==KEY_RIGHT || code==KEY_UP || code==KEY_DOWN) {
+    		boolean altOnly = e.getNativeEvent().getAltKey() && !e.getNativeEvent().getCtrlKey() &&
+    			!e.getNativeEvent().getMetaKey() && !e.getNativeEvent().getShiftKey();
+    		if (code==KEY_UP && altOnly) {
+    		    app.commands.menuPerformed("key", "centercircuit");
+    		    e.cancel();
+    		} else if (code==KEY_LEFT || code==KEY_RIGHT || code==KEY_UP || code==KEY_DOWN) {
     		    int dx = 0, dy = 0;
     		    if (code == KEY_LEFT)  dx = -app.gridSize;
     		    if (code == KEY_RIGHT) dx = app.gridSize;
@@ -1255,6 +1290,11 @@ public class UIManager {
 				app.commands.menuPerformed("key", "print");
 				e.cancel();
 			}
+    			if (code==KEY_R) {
+				// (instead of reloading the page)
+				resetAction();
+				e.cancel();
+			}
     			if (code==KEY_N && CirSim.isElectron()) {
 				app.commands.menuPerformed("key", "newwindow");
 				e.cancel();
@@ -1275,7 +1315,7 @@ public class UIManager {
     	if ((t&Event.ONKEYPRESS)!=0) {
     		// check if any switches have a keyboard shortcut matching this key
     		// (cc==32 for spacebar is included so it can be assigned as a shortcut too;
-    		// it falls back to the hardcoded temporary-select-mode behavior below if unassigned)
+    		// if unassigned it runs/stops the simulation, see the keydown handling above)
     		if (cc>=32 && cc<127) {
     		    String keyStr = String.valueOf((char)cc).toLowerCase();
     		    boolean toggled = false;
@@ -1309,12 +1349,6 @@ public class UIManager {
     			    mouseModeStr=c;
 			    updateToolbar();
     			    mouse.tempMouseMode = mouse.mouseMode;
-    			} else if (cc==32) {
-    			    setMouseMode(MouseManager.MODE_SELECT);
-    			    mouseModeStr = "Select";
-    			    updateToolbar();
-    			    mouse.tempMouseMode = mouse.mouseMode;
-    			    e.cancel();
     			}
     		    }
     		}

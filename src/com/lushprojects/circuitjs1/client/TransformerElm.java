@@ -290,6 +290,9 @@ class TransformerElm extends CircuitElm {
 	}
 	double curSourceValue1, curSourceValue2;
 	void doStep() {
+	    // at the DC operating point the windings are shorts (see ACAnalysis), with no history current
+	    if (doDcAnalysis())
+		return;
 	    if (saturationCurrent > 0) {
 		// stamp conductances and VCCSes (matrix was restored to origMatrix)
 		sim.stampConductance(nodes[0], nodes[2], a1);
