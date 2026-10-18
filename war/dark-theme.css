@@ -9,6 +9,10 @@
  */
 
 :root {
+	/* dark native controls (checkboxes, selects, color pickers) in the Windows 11 accent */
+	color-scheme: dark;
+	accent-color: #60cdff;
+
 	--dark-bg: #1e1e1e;
 	--dark-bg-alt: #2a2a2a;
 	--dark-bg-hover: #3a3a3a;
@@ -17,12 +21,13 @@
 	--dark-text-dim: #9a9a9a;
 	--dark-accent: #3a6ea5;
 
-	/* colors read by Scrollbar.java when drawing the sliders */
-	--cirjs-scrollbar-bg: #1e1e1e;
-	--cirjs-scrollbar-fg: #e0e0e0;
-	--cirjs-scrollbar-disabled: #555555;
-	--cirjs-scrollbar-track: #808080;
-	--cirjs-scrollbar-bar: red;
+	/* colors read by Scrollbar.java when drawing the sliders (Windows 11 dark slider) */
+	--cirjs-scrollbar-fg: #c8c8c8;
+	--cirjs-scrollbar-disabled: #505050;
+	--cirjs-scrollbar-track: #9a9a9a;
+	--cirjs-scrollbar-bar: #60cdff;
+	--cirjs-scrollbar-thumb: #454545;
+	--cirjs-scrollbar-thumb-border: #5a5a5a;
 }
 
 html, body {
@@ -39,6 +44,7 @@ input, select, textarea, button {
 	background-color: var(--dark-bg-alt);
 	color: var(--dark-text);
 	border: 1px solid var(--dark-border);
+	border-radius: 4px;
 }
 
 table {
@@ -58,6 +64,7 @@ table {
 	background: var(--dark-bg-alt) !important;
 	color: var(--dark-text) !important;
 	border-color: var(--dark-border) !important;
+	border-radius: 4px !important;
 }
 .gwt-Button:hover {
 	background: var(--dark-bg-hover) !important;
@@ -71,6 +78,14 @@ table {
 	background: var(--dark-bg-alt) !important;
 	color: var(--dark-text) !important;
 	border-color: var(--dark-border) !important;
+	border-radius: 4px !important;
+}
+/* focused field: accent underline as in Windows 11, instead of the thick white ring */
+.gwt-TextBox:focus, .gwt-TextArea:focus, .gwt-ListBox:focus, .gwt-PasswordTextBox:focus,
+input:focus, textarea:focus, select:focus {
+	outline: none !important;
+	border-color: var(--dark-border) !important;
+	box-shadow: inset 0 -2px 0 var(--cirjs-scrollbar-bar);
 }
 .gwt-TextBox-readonly, .gwt-TextArea-readonly, .gwt-PasswordTextBox-readonly {
 	background: #262626 !important;
@@ -84,26 +99,37 @@ table {
 	color: var(--dark-text-dim) !important;
 }
 
+/*
+ * Dialogs and popups framed like Windows 11 windows: rounded edge and shadow.
+ * The rounded background is the outer element's; the cells inside it (the
+ * 9-slice grid, see below) are transparent so they don't square the corners.
+ */
 .gwt-DialogBox {
 	background: var(--dark-bg-alt) !important;
 	color: var(--dark-text) !important;
-	border-color: var(--dark-border) !important;
+	border: 1px solid #454545 !important;
+	border-radius: 8px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
 }
 .gwt-DialogBox .Caption {
-	background: #303030 !important;
+	background: transparent !important;
 	color: var(--dark-text) !important;
+	/* clean.css draws light #bbb/#d2d2d2 lines above and below the title */
+	border-top-color: transparent !important;
+	border-bottom-color: var(--dark-border) !important;
 }
 .gwt-DialogBox .dialogContent,
 .gwt-DialogBox .dialogMiddleCenter,
 .gwt-DialogBox .dialogTopCenter,
 .gwt-DialogBox .dialogBottomCenter {
-	background: var(--dark-bg-alt) !important;
+	background: transparent !important;
 }
 
 .gwt-PopupPanel, .gwt-DecoratedPopupPanel {
 	background: var(--dark-bg-alt) !important;
 	color: var(--dark-text) !important;
 	border-color: var(--dark-border) !important;
+	border-radius: 8px;
 }
 .gwt-PopupPanelGlass {
 	background: #000 !important;
@@ -117,10 +143,10 @@ table {
  * same rule for .gwt-MenuBarPopup above doesn't reach it.
  */
 .gwt-MenuBarPopup .menuPopupMiddleCenter {
-	background: var(--dark-bg-alt) !important;
+	background: transparent !important;
 }
 .gwt-DecoratedPopupPanel .popupMiddleCenter {
-	background: var(--dark-bg-alt) !important;
+	background: transparent !important;
 }
 
 /*
@@ -141,7 +167,7 @@ table {
 .gwt-DecoratedPopupPanel .popupMiddleRight, .gwt-DecoratedPopupPanel .popupBottomLeft,
 .gwt-DecoratedPopupPanel .popupBottomCenter, .gwt-DecoratedPopupPanel .popupBottomRight {
 	background-image: none !important;
-	background-color: var(--dark-bg-alt) !important;
+	background-color: transparent !important;
 }
 
 .gwt-MenuBar, .gwt-MenuBar-horizontal, .gwt-MenuBar-vertical, .gwt-MenuBarPopup {
@@ -152,12 +178,70 @@ table {
 .gwt-MenuBar .gwt-MenuItem {
 	color: var(--dark-text) !important;
 }
+/*
+ * Menu popups framed like Windows 11 flyouts: without an edge or shadow a
+ * popup over the black circuit canvas blends into it, so the canvas visible
+ * next to it looks like part of the menu.  The 9-slice cells (below) are made
+ * transparent so the rounded background of the popup itself shows through.
+ */
+.gwt-MenuBarPopup {
+	border: 1px solid #454545 !important;
+	border-radius: 7px;
+	box-shadow: 0 8px 16px rgba(0, 0, 0, 0.55);
+}
+.gwt-MenuBarPopup .menuPopupTopLeft, .gwt-MenuBarPopup .menuPopupTopCenter,
+.gwt-MenuBarPopup .menuPopupTopRight, .gwt-MenuBarPopup .menuPopupMiddleLeft,
+.gwt-MenuBarPopup .menuPopupMiddleRight, .gwt-MenuBarPopup .menuPopupBottomLeft,
+.gwt-MenuBarPopup .menuPopupBottomCenter, .gwt-MenuBarPopup .menuPopupBottomRight {
+	background-color: transparent !important;
+}
 .gwt-MenuBar .gwt-MenuItem-selected {
 	background: var(--dark-accent) !important;
 	color: #fff !important;
 }
+/* rounded highlight; in popups a row with a submenu is two cells (label + arrow) */
+/* (cells of a collapsed table can't have rounded corners; clean.css collapses it) */
+.gwt-MenuBar-vertical table {
+	border-collapse: separate !important;
+	border-spacing: 0;
+}
+.gwt-MenuBar-horizontal .gwt-MenuItem,
+.gwt-MenuBar-vertical td.gwt-MenuItem[colspan="2"] {
+	border-radius: 4px;
+}
+.gwt-MenuBar-vertical td.gwt-MenuItem[colspan="1"] {
+	border-radius: 4px 0 0 4px;
+}
+.gwt-MenuBar-vertical .subMenuIcon {
+	border-radius: 0 4px 4px 0;
+}
 .gwt-MenuItem-disabled, .gwt-MenuItem-disabled * {
 	color: #6a6a6a !important;
+}
+/*
+ * Submenu arrow: clean.css gives its cell a light background when the row is
+ * selected, and the arrow itself is a black GIF that vanishes on the dark menu.
+ */
+.gwt-MenuBar-vertical .subMenuIcon {
+	background: transparent !important;
+}
+.gwt-MenuBar-vertical .subMenuIcon-selected {
+	background: var(--dark-accent) !important;
+}
+.gwt-MenuBar-vertical .subMenuIcon img,
+.gwt-MenuBar-vertical .subMenuIcon-selected img {
+	filter: invert(88%);
+}
+.gwt-MenuBar-vertical .subMenuIcon-selected img {
+	filter: invert(100%);
+}
+.gwt-MenuBar-vertical .gwt-MenuItemSeparator .menuSeparatorInner {
+	border-top-color: var(--dark-border) !important;
+}
+.gwt-MenuBar-horizontal .gwt-MenuItemSeparator,
+.gwt-MenuBar-horizontal .gwt-MenuItemSeparator .menuSeparatorInner {
+	background: transparent !important;
+	border-left-color: var(--dark-border) !important;
 }
 
 .gwt-TabBar, .gwt-DecoratedTabBar, .gwt-TabBarItem, .gwt-TabPanelBottom,
@@ -255,4 +339,7 @@ table {
 }
 ::-webkit-scrollbar-thumb:hover {
 	background: #5a5a5a;
+}
+::-webkit-scrollbar-corner {
+	background: var(--dark-bg);
 }

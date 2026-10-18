@@ -507,11 +507,16 @@ public abstract class CircuitElm implements Editable {
 	if (pos < 0)
 	    pos += ds;
 	double di = 0;
+	// round dots, about the same area as the old 4x4 squares, filled as one path
+	Context2d ctx = g.context;
+	ctx.beginPath();
 	for (di = pos; di < dn; di += ds) {
 	    int x0 = (int) (pa.x+di*dx/dn);
 	    int y0 = (int) (pa.y+di*dy/dn);
-	    g.fillRect(x0-2, y0-2, 4, 4);
+	    ctx.moveTo(x0+2.3, y0);
+	    ctx.arc(x0, y0, 2.3, 0, 2*Math.PI);
 	}
+	ctx.fill();
     }
 
     double addCurCount(double c, double a) {

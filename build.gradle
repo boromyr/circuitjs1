@@ -160,9 +160,8 @@ tasks.register('makeSite', Copy) {
 
     doLast {
         println "makeSite done. Checking site/circuitjs1:"
-        exec {
-            commandLine 'ls', '-la', 'site/circuitjs1'
-        }
+        // listed in Groovy rather than with 'ls', which is missing from a plain Windows cmd
+        file('site/circuitjs1').listFiles().sort().each { println "  ${it.name}" }
     }
 }
 

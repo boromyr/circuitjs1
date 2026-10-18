@@ -221,7 +221,6 @@
 			alert(S.popup);
 			return;
 		}
-		save('open', true);
 		buildUI();
 		// some engines replace the initial about:blank document once it "loads"
 		setTimeout(function () { if (win && !win.closed && !win.document.getElementById('root')) buildUI(); }, 300);
@@ -282,8 +281,6 @@
 		win.onresize = function () { draw(); saveGeom(); };
 		win.onbeforeunload = function () {
 			saveGeom();
-			// closed by the user (not by the main window going away)
-			if (!mainUnloading) save('open', false);
 		};
 		draw();
 	}
@@ -632,17 +629,13 @@
 	// startup
 	// ------------------------------------------------------------------
 
-	var mainUnloading = false;
 	window.addEventListener('beforeunload', function () {
-		mainUnloading = true;
 		saveGeom();
 		if (win && !win.closed) win.close();
 	});
 
 	function init(api) {
 		sim = api;
-		// reopen the plot window if it was open when the app was closed
-		if (load('open', false)) setTimeout(open, 600);
 	}
 
 	var prevHook = window.oncircuitjsloaded;
