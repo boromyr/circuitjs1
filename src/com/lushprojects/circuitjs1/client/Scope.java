@@ -19,6 +19,7 @@
 
 package com.lushprojects.circuitjs1.client;
 
+import com.google.gwt.canvas.dom.client.Context2d;
 import com.google.gwt.event.dom.client.MouseWheelEvent;
 import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
@@ -871,35 +872,81 @@ void showPlotValue(int val, boolean b) {
 	// In triggered mode, only draw up to the current write pointer.
 	// Data beyond that is stale (old circular buffer contents).
 	int drawWidth = validDataCount(plot, ipa, rect.width);
-	int ox = -1, oy = -1;
-	int i;
-	for (i = 0; i != drawWidth; i++) {
+	// One antialiased path through the unrounded values, so a signal is a smooth
+	// line on HiDPI canvases instead of a staircase of whole pixels.  Each column
+	// holds the min and max of its samples: the line goes through the middle of
+	// the column, and the vertical min-max span is drawn only where the line to
+	// the neighbouring columns doesn't already cover it (a fast edge, a sharp
+	// peak, or many cycles per pixel).
+	double ylo[] = new double[drawWidth];
+	double yhi[] = new double[drawWidth];
+	boolean valid[] = new boolean[drawWidth];
+	for (int i = 0; i != drawWidth; i++) {
 	    int ip = (i+ipa) & (scopePointCount-1);
-	    int minvy = (int)Math.round(plot.gridMult*(minV[ip]+plot.plotOffset));
-	    int maxvy = (int)Math.round(plot.gridMult*(maxV[ip]+plot.plotOffset));
-	    if (minvy <= maxy) {
-		if (minvy < minRangeLo || maxvy > minRangeHi) {
-		    // value outside min range; no need to rescale later
-		    reduceRange[plot.units] = false;
-		    minRangeLo = -1000;
-		    minRangeHi = 1000;
-		}
-		if (ox != -1) {
-		    if (minvy == oy && maxvy == oy)
-			continue;
-		    g.drawLine(ox, maxy-oy, i, maxy-oy);
-		    ox = oy = -1;
-		}
-		if (minvy == maxvy) {
-		    ox = i;
-		    oy = minvy;
-		    continue;
-		}
-		g.drawLine(i, maxy-minvy, i, maxy-maxvy);
+	    double vmin = plot.gridMult*(minV[ip]+plot.plotOffset);
+	    double vmax = plot.gridMult*(maxV[ip]+plot.plotOffset);
+	    int minvy = (int)Math.round(vmin);
+	    int maxvy = (int)Math.round(vmax);
+	    if (minvy > maxy)
+		continue;
+	    if (minvy < minRangeLo || maxvy > minRangeHi) {
+		// value outside min range; no need to rescale later
+		reduceRange[plot.units] = false;
+		minRangeLo = -1000;
+		minRangeHi = 1000;
 	    }
+	    valid[i] = true;
+	    ylo[i] = maxy-vmin;
+	    yhi[i] = maxy-vmax;
 	}
-	if (ox != -1)
-	    g.drawLine(ox, maxy-oy, i-1, maxy-oy);
+	Context2d ctx = g.context;
+	ctx.save();
+	ctx.setLineJoin("round");
+	ctx.beginPath();
+	boolean penDown = false;
+	double py = 0;
+	for (int i = 0; i != drawWidth; i++) {
+	    if (!valid[i]) {
+		penDown = false;
+		continue;
+	    }
+	    double y = (ylo[i]+yhi[i])/2;
+	    // range the line to the neighbours' midpoints sweeps through this column
+	    double cover0 = y, cover1 = y;
+	    if (i > 0 && valid[i-1]) {
+		double h = (y+(ylo[i-1]+yhi[i-1])/2)/2;
+		cover0 = Math.min(cover0, h);
+		cover1 = Math.max(cover1, h);
+	    }
+	    if (i+1 < drawWidth && valid[i+1]) {
+		double h = (y+(ylo[i+1]+yhi[i+1])/2)/2;
+		cover0 = Math.min(cover0, h);
+		cover1 = Math.max(cover1, h);
+	    }
+	    if (yhi[i] >= cover0-1 && ylo[i] <= cover1+1) {
+		if (penDown)
+		    ctx.lineTo(i, y);
+		else
+		    ctx.moveTo(i, y);
+		py = y;
+	    } else {
+		// enter the span at the end nearer the previous point, leave from the other
+		double a = ylo[i], b = yhi[i];
+		if (penDown && Math.abs(py-yhi[i]) < Math.abs(py-ylo[i])) {
+		    a = yhi[i];
+		    b = ylo[i];
+		}
+		if (penDown)
+		    ctx.lineTo(i, a);
+		else
+		    ctx.moveTo(i, a);
+		ctx.lineTo(i, b);
+		py = b;
+	    }
+	    penDown = true;
+	}
+	ctx.stroke();
+	ctx.restore();
     }
 
     static void clearCursorInfo() {
