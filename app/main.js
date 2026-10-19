@@ -233,6 +233,50 @@ ipcMain.on('new-window', () => {
   createWindow();
 });
 
+// The last files opened, most recent first (File > Open Recent), kept in the
+// profile and shared by all the windows.
+var MAX_RECENT = 10;
+
+function recentFilesFile() {
+  return path.join(app.getPath('userData'), 'recent-files.json');
+}
+
+function loadRecentFiles() {
+  try {
+    var list = JSON.parse(fs.readFileSync(recentFilesFile(), 'utf8'));
+    if (Array.isArray(list))
+      return list.filter(function (f) { return typeof f === 'string'; }).slice(0, MAX_RECENT);
+  } catch (e) {}
+  return [];
+}
+
+function saveRecentFiles(list) {
+  try {
+    fs.writeFileSync(recentFilesFile(), JSON.stringify(list, null, 1));
+  } catch (e) {}
+}
+
+function sameFile(a, b) {
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+ipcMain.on('get-recent-files', (event) => {
+  event.returnValue = loadRecentFiles();
+});
+
+ipcMain.on('add-recent-file', (event, file) => {
+  if (typeof file !== 'string' || !file)
+    return;
+  file = path.resolve(file);
+  var list = loadRecentFiles().filter(function (f) { return !sameFile(f, file); });
+  list.unshift(file);
+  saveRecentFiles(list.slice(0, MAX_RECENT));
+});
+
+ipcMain.on('remove-recent-file', (event, file) => {
+  saveRecentFiles(loadRecentFiles().filter(function (f) { return !sameFile(f, file); }));
+});
+
 function createWindow () {
   // On Mac, use open-file event path; on Windows/Linux use argv[1]
   var fileToOpen = pendingOpenFile;

@@ -697,6 +697,21 @@ public class CommandManager {
 	CirSim app = CirSim.theApp;
 	LoadFile.doLoadCallback(text, name);
 	app.allowSave(true);
+	app.menus.refreshRecentFiles();
+    }
+
+    static native void electronOpenRecentFile(String path) /*-{
+        $wnd.openRecentFile(path, function (text, name) {
+            @com.lushprojects.circuitjs1.client.CommandManager::electronOpenFileCallback(Ljava/lang/String;Ljava/lang/String;)(text, name);
+        });
+        // a missing file is removed from the list right away
+        @com.lushprojects.circuitjs1.client.CommandManager::refreshRecentLater()();
+    }-*/;
+
+    static void refreshRecentLater() {
+	new com.google.gwt.user.client.Timer() {
+	    public void run() { CirSim.theApp.menus.refreshRecentFiles(); }
+	}.schedule(500);
     }
     
     static native void electronOpenFile() /*-{

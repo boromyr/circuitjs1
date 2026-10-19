@@ -38,6 +38,7 @@ import com.google.gwt.http.client.RequestCallback;
 import com.google.gwt.user.client.ui.MenuItem;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.user.client.Window;
+import com.google.gwt.core.client.JsArrayString;
 
 public class Menus {
 
@@ -88,6 +89,7 @@ public class Menus {
     CirSim sim;
     MenuBar menuBar;
     MenuBar fileMenuBar;
+    MenuBar recentMenuBar;
 
     Menus(CirSim sim_) {
 	sim = sim_;
@@ -111,6 +113,15 @@ public class Menus {
 		new MyCommand("file","importfromlocalfile"));
 	importFromLocalFileItem.setEnabled(LoadFile.isSupported());
 	fileMenuBar.addItem(importFromLocalFileItem);
+	if (isElectron()) {
+	    // the last 10 files opened, listed by the Electron app (preload.js)
+	    recentMenuBar = new MenuBar(true);
+	    fileMenuBar.addItem(SafeHtmlUtils.fromTrustedString("<i class=\"cirjsicon-folder\"></i>&nbsp;" +
+		    Locale.LS("Open Recent")), recentMenuBar);
+	    refreshRecentFiles();
+	    // other windows can open files too: reload the list when coming back here
+	    addFocusListener(this);
+	}
 	importFromTextItem = iconMenuItem("doc-text", "Import From Text...", new MyCommand("file","importfromtext"));
 	fileMenuBar.addItem(importFromTextItem);
 	importFromDropboxItem = iconMenuItem("dropbox", "Import From Dropbox...", new MyCommand("file", "importfromdropbox"));
@@ -518,6 +529,48 @@ public class Menus {
     CheckboxMenuItem getClassCheckItem(String s, String t) { return sim.ui.getClassCheckItem(s, t); }
     
     boolean isElectron() { return CirSim.isElectron(); }
+
+    static native JsArrayString getRecentFiles() /*-{
+	return $wnd.getRecentFiles ? $wnd.getRecentFiles() : [];
+    }-*/;
+
+    static native void addFocusListener(Menus menus) /*-{
+	$wnd.addEventListener('focus', function () {
+	    menus.@com.lushprojects.circuitjs1.client.Menus::refreshRecentFiles()();
+	});
+    }-*/;
+
+    // rebuilds File > Open Recent: file name, then its folder in grey
+    void refreshRecentFiles() {
+	if (recentMenuBar == null)
+	    return;
+	recentMenuBar.clearItems();
+	JsArrayString files = getRecentFiles();
+	for (int i = 0; i < files.length(); i++) {
+	    final String path = files.get(i);
+	    int sep = Math.max(path.lastIndexOf('\\'), path.lastIndexOf('/'));
+	    String name = path.substring(sep+1);
+	    String dir = sep > 0 ? path.substring(0, sep) : "";
+	    // long folders keep their end, the part that tells them apart
+	    if (dir.length() > 50)
+		dir = "\u2026" + dir.substring(dir.length()-49);
+	    MenuItem mi = new MenuItem(SafeHtmlUtils.fromTrustedString(
+		    SafeHtmlUtils.htmlEscape(name) + "<span style=\"opacity:.55;margin-left:12px\">" +
+		    SafeHtmlUtils.htmlEscape(dir) + "</span>"), new Command() {
+			public void execute() {
+			    sim.undoManager.pushUndo();
+			    CommandManager.electronOpenRecentFile(path);
+			}
+		    });
+	    mi.setTitle(path);
+	    recentMenuBar.addItem(mi);
+	}
+	if (files.length() == 0) {
+	    MenuItem none = new MenuItem(Locale.LS("No recent files"), (Command) null);
+	    none.setEnabled(false);
+	    recentMenuBar.addItem(none);
+	}
+    }
 
     void getSetupList(final boolean openDefault) {
 

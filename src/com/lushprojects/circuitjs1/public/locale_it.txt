@@ -398,6 +398,8 @@
 "Impedances of Same Magnitude"="Impedenze Equivalenti"
 "Import From Dropbox..."="Importa da Dropbox..."
 "Open File..."="Apri File..."
+"Open Recent"="Apri file recenti"
+"No recent files"="Nessun file recente"
 "Import From Text..."="Importa da Testo..."
 "Improved"="Migliorato"
 "Inductance (H)"="Induttanza (H)"
