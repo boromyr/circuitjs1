@@ -37,6 +37,7 @@ public class SimulationManager {
     HashMap<CircuitElm, ArrayList<RoutedWireConnection>> routedWireMap;
     CircuitElm elmArr[];
     ACAnalysis acAnalysis = new ACAnalysis(this);
+    FFTCapture fftCapture = new FFTCapture(this);
     double t;
 
     // Solver type: 0=Auto, 1=Dense, 2=Sparse
@@ -1290,6 +1291,9 @@ public class SimulationManager {
 	boolean debugprint = app.dumpMatrix;
 	app.dumpMatrix = false;
 	long steprate = (long) (160*app.getIterCount());
+	// while the FFT window acquires, as many steps as fit in the frame time limit below
+	if (fftCapture.fast && fftCapture.elm != null)
+	    steprate = 1000000000L;
 	long tm = System.currentTimeMillis();
 	long lit = lastIterTime;
 	if (lit == 0) {

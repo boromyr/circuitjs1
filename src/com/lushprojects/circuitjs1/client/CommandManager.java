@@ -159,6 +159,8 @@ public class CommandManager {
     	}
     	if (item=="bodeplot")
     		openBodePlot();
+    	if (item=="fftplot")
+    		openFFTPlot();
     	if (item=="stackAll")
     		app.scopeManager.stackAll();
     	if (item=="unstackAll")
@@ -673,6 +675,12 @@ public class CommandManager {
     static native void openBodePlot() /*-{
 	if ($wnd.CircuitJSBode)
 	    $wnd.CircuitJSBode.open();
+    }-*/;
+
+    // the FFT window lives in war/fftplot.js; it gets its samples from FFTCapture
+    static native void openFFTPlot() /*-{
+	if ($wnd.CircuitJSFFT)
+	    $wnd.CircuitJSFFT.open();
     }-*/;
 
     static native void newElectronWindow() /*-{

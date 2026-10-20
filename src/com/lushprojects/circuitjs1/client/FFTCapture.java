@@ -34,6 +34,8 @@ class FFTCapture {
     double tbuf[] = new double[0], vbuf[] = new double[0];
     int pos, count;
     double lastT;
+    // run the simulation as fast as the frame time allows, while the FFT window acquires
+    boolean fast;
 
     FFTCapture(SimulationManager s) { sim = s; }
 
@@ -58,6 +60,7 @@ class FFTCapture {
     }
 
     void stop() {
+	fast = false;
 	key = null;
 	elm = null;
 	tbuf = vbuf = new double[0];
@@ -95,6 +98,19 @@ class FFTCapture {
 	}
 	return pack(ts, vs, sim.maxTimeStep, CirSim.theApp.simIsRunning());
     }
+
+    // how much is recorded, without copying the samples: {count, t0, t1, maxStep, running}
+    native JavaScriptObject status() /*-{
+	var c = this.@com.lushprojects.circuitjs1.client.FFTCapture::count;
+	var len = this.@com.lushprojects.circuitjs1.client.FFTCapture::vbuf.length;
+	var pos = this.@com.lushprojects.circuitjs1.client.FFTCapture::pos;
+	var tb = this.@com.lushprojects.circuitjs1.client.FFTCapture::tbuf;
+	var sim = this.@com.lushprojects.circuitjs1.client.FFTCapture::sim;
+	var t0 = c > 0 ? tb[(pos - c + len) % len] : 0, t1 = c > 0 ? tb[(pos - 1 + len) % len] : 0;
+	return { count: c, t0: t0, t1: t1,
+	    maxStep: sim.@com.lushprojects.circuitjs1.client.SimulationManager::maxTimeStep,
+	    running: @com.lushprojects.circuitjs1.client.CirSim::theApp.@com.lushprojects.circuitjs1.client.CirSim::simIsRunning()() };
+    }-*/;
 
     // in compiled code a double[] is a plain JavaScript array of numbers
     static native JavaScriptObject pack(double ts[], double vs[], double maxStep, boolean running) /*-{

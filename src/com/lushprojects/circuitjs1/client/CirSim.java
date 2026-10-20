@@ -302,6 +302,7 @@ public class CirSim implements NativePreviewHandler {
     
     void onTimeStep() {
 	scopeManager.timeStep();
+	sim.fftCapture.timeStep();
 	jsInterface.callTimeStepHook();
     }
 

@@ -337,6 +337,17 @@ function createWindow () {
 	    autoHideMenuBar: true
 	  } };
 	}
+	// FFT window (war/fftplot.js), made the same way
+	if (frameName === 'circuitjs-fft') {
+	  return { action: 'allow', overrideBrowserWindowOptions: {
+	    parent: mainWindow,
+	    title: 'FFT',
+	    minWidth: 560,
+	    minHeight: 360,
+	    backgroundColor: '#1e1e1e',
+	    autoHideMenuBar: true
+	  } };
+	}
 	// new windows are handled via IPC (window.newWindow); deny everything else
 	return { action: 'deny' };
   });

@@ -1677,3 +1677,4 @@
 "unconnected nodes:"="nodi non collegati:"
 "wattmeter (old)"="wattmetro (vecchio)"
 "Bode Plot..."="Diagramma di Bode..."
+"FFT Spectrum..."="Spettro FFT..."

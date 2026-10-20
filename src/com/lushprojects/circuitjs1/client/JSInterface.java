@@ -50,6 +50,12 @@ public class JSInterface {
     double getMaxTimeStep() { return app.sim.maxTimeStep; }
     String getACTargets() { return app.sim.acAnalysis.getTargetsJSON(); }
     String acSweep(String src, String out, double fmin, double fmax, int n) { return app.sim.acAnalysis.sweepJSON(src, out, fmin, fmax, n); }
+    boolean fftSelect(String out, int n) { return app.sim.fftCapture.select(out, n); }
+    JavaScriptObject fftSamples() { return app.sim.fftCapture.samples(); }
+    void fftClear() { app.sim.fftCapture.clear(); }
+    void fftStop() { app.sim.fftCapture.stop(); }
+    JavaScriptObject fftStatus() { return app.sim.fftCapture.status(); }
+    void fftSetFast(boolean f) { app.sim.fftCapture.fast = f; }
     void setMaxTimeStep(double ts) { app.sim.maxTimeStep = app.sim.timeStep = ts; }
 
     native void setupJSInterface() /*-{
@@ -70,7 +76,14 @@ public class JSInterface {
 	    importCircuit: $entry(function(circuit, subcircuitsOnly) { return that.@com.lushprojects.circuitjs1.client.JSInterface::importCircuitFromText(Ljava/lang/String;Z)(circuit, subcircuitsOnly); }),
 	    // small-signal frequency response, used by bodeplot.js (results are JSON strings, see ACAnalysis)
 	    getACTargets: $entry(function() { return JSON.parse(that.@com.lushprojects.circuitjs1.client.JSInterface::getACTargets()()); }),
-	    acSweep: $entry(function(src, out, fmin, fmax, n) { return JSON.parse(that.@com.lushprojects.circuitjs1.client.JSInterface::acSweep(Ljava/lang/String;Ljava/lang/String;DDI)(src, out, fmin, fmax, n)); })
+	    acSweep: $entry(function(src, out, fmin, fmax, n) { return JSON.parse(that.@com.lushprojects.circuitjs1.client.JSInterface::acSweep(Ljava/lang/String;Ljava/lang/String;DDI)(src, out, fmin, fmax, n)); }),
+	    // voltage of an output recorded at every time step, used by fftplot.js (see FFTCapture)
+	    fftSelect: $entry(function(out, n) { return that.@com.lushprojects.circuitjs1.client.JSInterface::fftSelect(Ljava/lang/String;I)(out, n); }),
+	    fftSamples: $entry(function() { return that.@com.lushprojects.circuitjs1.client.JSInterface::fftSamples()(); }),
+	    fftClear: $entry(function() { that.@com.lushprojects.circuitjs1.client.JSInterface::fftClear()(); }),
+	    fftStop: $entry(function() { that.@com.lushprojects.circuitjs1.client.JSInterface::fftStop()(); }),
+	    fftStatus: $entry(function() { return that.@com.lushprojects.circuitjs1.client.JSInterface::fftStatus()(); }),
+	    fftSetFast: $entry(function(f) { that.@com.lushprojects.circuitjs1.client.JSInterface::fftSetFast(Z)(!!f); })
 	};
 	var hook = $wnd.oncircuitjsloaded;
 	if (hook)
