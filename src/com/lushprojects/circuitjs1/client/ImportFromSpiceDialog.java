@@ -30,6 +30,10 @@ import java.util.HashMap;
 import java.util.Vector;
 
 import com.google.gwt.event.dom.client.ClickEvent;
+import com.google.gwt.event.dom.client.ChangeEvent;
+import com.google.gwt.event.dom.client.ChangeHandler;
+import com.google.gwt.event.dom.client.KeyUpEvent;
+import com.google.gwt.event.dom.client.KeyUpHandler;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.ListBox;
 import com.lushprojects.circuitjs1.client.util.Locale;
@@ -40,7 +44,11 @@ VerticalPanel vp;
 HorizontalPanel hp;
 TextArea textArea;
 TextArea outputArea;
-ListBox modelList;
+// component type to create (Subcircuit, or one of SubcircuitSymbolElm.symbolKeys) and the
+// subcircuit node connected to each pin of its symbol
+ListBox typeList;
+VerticalPanel pinPanel;
+ListBox pinLists[];
 
 	public ImportFromSpiceDialog() {
 		super();
@@ -57,6 +65,30 @@ ListBox modelList;
 		vp.add(outputArea = new TextArea());
 		outputArea.setWidth("300px");
 		outputArea.setHeight("100px");
+
+		HorizontalPanel tp = new HorizontalPanel();
+		tp.setVerticalAlignment(com.google.gwt.user.client.ui.HasVerticalAlignment.ALIGN_MIDDLE);
+		Label typeLabel = new Label(Locale.LS("Component type:"));
+		typeLabel.getElement().getStyle().setMarginRight(8, com.google.gwt.dom.client.Style.Unit.PX);
+		tp.add(typeLabel);
+		tp.add(typeList = new ListBox());
+		typeList.addItem(Locale.LS("Subcircuit"));
+		for (String s : SubcircuitSymbolElm.symbolLabels)
+		    typeList.addItem(Locale.LS(s));
+		typeList.addChangeHandler(new ChangeHandler() {
+			public void onChange(ChangeEvent event) {
+			    buildPinPanel();
+			}
+		});
+		vp.add(tp);
+		vp.add(pinPanel = new VerticalPanel());
+		textArea.addKeyUpHandler(new KeyUpHandler() {
+			public void onKeyUp(KeyUpEvent event) {
+			    analyzeText();
+			}
+		});
+		addInputListener(textArea.getElement());
+
 		hp = new HorizontalPanel();
 		vp.add(hp);
 		hp.add(okButton = new Button(Locale.LS("OK")));
@@ -72,33 +104,293 @@ ListBox modelList;
 			}
 		});
 
-		// imported device models, with a way to remove them from the menus
-		vp.add(new Label(Locale.LS("Imported models")));
-		HorizontalPanel mp = new HorizontalPanel();
-		vp.add(mp);
-		mp.add(modelList = new ListBox());
-		modelList.setWidth("200px");
-		Button deleteButton;
-		mp.add(deleteButton = new Button(Locale.LS("Delete")));
-		deleteButton.addClickHandler(new ClickHandler() {
+		// imported models can be edited or deleted in the model manager
+		Button manageButton;
+		hp.add(manageButton = new Button(Locale.LS("Imported Models...")));
+		manageButton.addClickHandler(new ClickHandler() {
 			public void onClick(ClickEvent event) {
-			    int i = modelList.getSelectedIndex();
-			    if (i < 0)
-				return;
-			    UserModelLibrary.removeModel(modelList.getValue(i));
-			    refreshModelList();
+			    new ModelManagerDialog();
 			}
 		});
-		refreshModelList();
 		this.center();
 		show();
 	}
 
-	void refreshModelList() {
-	    modelList.clear();
-	    for (UserModelLibrary.Entry e : UserModelLibrary.getEntries())
-		modelList.addItem(e.name + " (" + e.type.toUpperCase() + ")", e.name);
+	native void addInputListener(com.google.gwt.dom.client.Element e) /*-{
+	    var self = this;
+	    e.addEventListener('input', $entry(function () {
+		self.@com.lushprojects.circuitjs1.client.ImportFromSpiceDialog::analyzeText()();
+	    }));
+	}-*/;
+
+	// nodes of the .subckt line (lower case, as the parser sees them) and a description of each,
+	// from the header comments if present
+	Vector<String> headerNodes = new Vector<String>();
+	Vector<String> headerDescs = new Vector<String>();
+	String headerText = "";
+	String lastSignature = "";
+
+	// look at the .subckt line and the comments to guess the component type and its pins
+	void analyzeText() {
+	    Vector<String> lines = getLines(textArea.getText());
+	    headerNodes = new Vector<String>();
+	    headerDescs = new Vector<String>();
+	    StringBuilder header = new StringBuilder();
+	    Vector<String> ladder = new Vector<String>();
+	    Vector<String> comments = new Vector<String>();
+	    boolean inLadder = false;
+	    boolean found = false;
+	    for (String line : lines) {
+		String t = line.trim();
+		if (t.startsWith("*")) {
+		    String c = t.substring(1).trim().toLowerCase();
+		    comments.add(c);
+		    header.append(c).append(' ');
+		    // pin lists drawn as a ladder of "|", eg
+		    // * CONNECTIONS:   NON-INVERTING INPUT
+		    // *                | INVERTING INPUT
+		    if (c.startsWith("connections") || c.startsWith("node assignment") || c.startsWith("pin order") ||
+			    c.startsWith("pinout") || c.startsWith("pin out")) {
+			inLadder = true;
+			ladder.clear();
+			int ix = c.indexOf(':');
+			c = (ix < 0) ? "" : c.substring(ix+1).trim();
+		    } else if (!inLadder)
+			continue;
+		    boolean pipes = c.startsWith("|");
+		    while (c.startsWith("|"))
+			c = c.substring(1).trim();
+		    if (c.length() > 0)
+			ladder.add(c);
+		    else if (!pipes && ladder.size() > 0)
+			inLadder = false;
+		    continue;
+		}
+		if (!t.toLowerCase().startsWith(".subckt"))
+		    continue;
+		BetterStringTokenizer st = new BetterStringTokenizer(t, " \t\f()");
+		st.nextToken();
+		if (st.hasMoreTokens())
+		    header.append(st.nextToken()).append(' ');
+		while (st.hasMoreTokens()) {
+		    String n = st.nextToken();
+		    if (n.equals("(") || n.equals(")"))
+			continue;
+		    // parameters, eg PARAMS: or x=1
+		    if (n.indexOf('=') >= 0 || n.endsWith(":"))
+			break;
+		    headerNodes.add(n);
+		}
+		found = true;
+		break;
+	    }
+	    if (!found) {
+		lastSignature = "";
+		typeList.setSelectedIndex(0);
+		buildPinPanel();
+		return;
+	    }
+	    for (int i = 0; i != headerNodes.size(); i++)
+		headerDescs.add(ladder.size() == headerNodes.size() ? ladder.get(i) : null);
+	    // also "1=drain 2=gate 3=source" style comments
+	    for (String c : comments) {
+		BetterStringTokenizer st = new BetterStringTokenizer(c, " \t,;=:");
+		Vector<String> toks = new Vector<String>();
+		while (st.hasMoreTokens()) {
+		    // the tokenizer also returns the delimiters
+		    String tok = st.nextToken();
+		    if (tok.length() > 0 && ",;=:".indexOf(tok) < 0)
+			toks.add(tok);
+		}
+		for (int i = 0; i+1 < toks.size(); i++) {
+		    String k = toks.get(i);
+		    int n = headerNodes.indexOf(k);
+		    if (n >= 0 && headerDescs.get(n) == null &&
+			    (c.indexOf(k + "=") >= 0 || c.indexOf(k + " =") >= 0 || c.indexOf(k + ":") >= 0))
+			headerDescs.set(n, toks.get(i+1));
+		}
+	    }
+	    for (int i = 0; i != headerNodes.size(); i++)
+		if (headerDescs.get(i) == null)
+		    headerDescs.set(i, headerNodes.get(i));
+	    headerText = header.toString();
+
+	    // only guess again when the header changes, so we don't undo the user's choices
+	    String sig = headerText + "|" + headerNodes + "|" + headerDescs;
+	    if (sig.equals(lastSignature))
+		return;
+	    lastSignature = sig;
+	    String sym = guessSymbol();
+	    typeList.setSelectedIndex(SubcircuitSymbolElm.getSymbolIndex(sym) + 1);
+	    buildPinPanel();
 	}
+
+	boolean has(String s, String... words) {
+	    for (String w : words)
+		if (s.indexOf(w) >= 0)
+		    return true;
+	    return false;
+	}
+
+	boolean is(String s, String... words) {
+	    for (String w : words)
+		if (s.equals(w))
+		    return true;
+	    return false;
+	}
+
+	// which pin of a symbol a node description refers to, or -1
+	int classifyPin(String sym, String d) {
+	    if (sym.equals(SubcircuitSymbolElm.SYM_OPAMP)) {
+		if (has(d, "non-inv", "noninv", "non inv") || is(d, "+in", "in+", "inp", "+", "vinp", "in_p", "inplus", "+input", "pos_in", "vin+"))
+		    return 1;
+		if (has(d, "inv") || is(d, "-in", "in-", "inn", "-", "vinn", "in_n", "inminus", "-input", "neg_in", "vin-"))
+		    return 0;
+		if (has(d, "output") || is(d, "out", "vout", "o", "vo"))
+		    return 2;
+		if ((has(d, "pos") && has(d, "supply", "power", "rail")) || is(d, "v+", "vcc", "vdd", "vs+", "+v", "vpos", "+vs", "+vcc", "vcc+", "vp"))
+		    return 3;
+		if ((has(d, "neg") && has(d, "supply", "power", "rail")) || is(d, "v-", "vee", "vss", "vs-", "-v", "vneg", "-vs", "-vee", "vee-", "vn", "gnd"))
+		    return 4;
+		return -1;
+	    }
+	    if (sym.equals("diode")) {
+		if (has(d, "anode") || is(d, "a", "+", "p"))
+		    return 0;
+		if (has(d, "cathode") || is(d, "k", "c", "-", "n"))
+		    return 1;
+		return -1;
+	    }
+	    if (sym.equals("npn") || sym.equals("pnp")) {
+		if (has(d, "base") || is(d, "b"))
+		    return 0;
+		if (has(d, "collector") || is(d, "c"))
+		    return 1;
+		if (has(d, "emitter") || is(d, "e"))
+		    return 2;
+		return -1;
+	    }
+	    if (has(d, "gate") || is(d, "g"))
+		return 0;
+	    if (has(d, "source") || is(d, "s"))
+		return 1;
+	    if (has(d, "drain") || is(d, "d"))
+		return 2;
+	    return -1;
+	}
+
+	// how many different pins of a symbol the node descriptions refer to
+	int countPins(String sym) {
+	    boolean seen[] = new boolean[5];
+	    int n = 0;
+	    for (String d : headerDescs) {
+		int p = classifyPin(sym, d);
+		if (p >= 0 && !seen[p]) {
+		    seen[p] = true;
+		    n++;
+		}
+	    }
+	    return n;
+	}
+
+	// guess the component type from the header comments, subcircuit name and pins
+	String guessSymbol() {
+	    String h = headerText;
+	    int nc = headerNodes.size();
+	    if (nc >= 5 && (has(h, "operational amplifier", "op amp", "opamp", "op-amp", "comparator") ||
+		    countPins(SubcircuitSymbolElm.SYM_OPAMP) >= 3 || nc == 5))
+		return SubcircuitSymbolElm.SYM_OPAMP;
+	    if (nc == 2 && (has(h, "diode", "zener", "rectifier", "schottky", "led") || countPins("diode") == 2))
+		return "diode";
+	    if (nc >= 3 && nc <= 4) {
+		if (has(h, "mosfet", "nmos", "pmos", "n-channel", "p-channel", "n-ch", "p-ch", "nch", "pch") || countPins("nmos") == 3)
+		    return has(h, "pmos", "p-channel", "p-ch", "pch") ? "pmos" : "nmos";
+		if (has(h, "npn", "pnp", "darlington", "transistor", "bjt") || countPins("npn") == 3)
+		    return has(h, "pnp") ? "pnp" : "npn";
+	    }
+	    return null;
+	}
+
+	// pin order usually used by SPICE subcircuits: symbol pin for each node
+	int[] getDefaultPinOrder(String sym) {
+	    if (sym.equals(SubcircuitSymbolElm.SYM_OPAMP))
+		return new int[] { 1, 0, 3, 4, 2 };  // +in -in V+ V- out
+	    if (sym.equals("diode"))
+		return new int[] { 0, 1 };           // anode cathode
+	    if (sym.equals("npn") || sym.equals("pnp"))
+		return new int[] { 1, 0, 2 };        // collector base emitter
+	    return new int[] { 2, 0, 1 };            // drain gate source
+	}
+
+	String getSelectedSymbol() {
+	    int i = typeList.getSelectedIndex();
+	    return (i <= 0) ? null : SubcircuitSymbolElm.symbolKeys[i-1];
+	}
+
+	// one list of subcircuit nodes for each pin of the chosen symbol, with a guess selected
+	void buildPinPanel() {
+	    pinPanel.clear();
+	    pinLists = null;
+	    String sym = getSelectedSymbol();
+	    if (sym == null)
+		return;
+	    String pins[] = SubcircuitSymbolElm.symbolPins[SubcircuitSymbolElm.getSymbolIndex(sym)];
+	    int nc = headerNodes.size();
+	    if (nc < pins.length) {
+		pinPanel.add(new Label(Locale.LS("The subcircuit has too few nodes for this component.")));
+		return;
+	    }
+
+	    // guess: from the descriptions first, then the usual pin order, then any free node
+	    int nodeForPin[] = new int[pins.length];
+	    boolean used[] = new boolean[nc];
+	    int i;
+	    for (i = 0; i != pins.length; i++)
+		nodeForPin[i] = -1;
+	    for (i = 0; i != nc; i++) {
+		int p = classifyPin(sym, headerDescs.get(i));
+		if (p >= 0 && nodeForPin[p] < 0) {
+		    nodeForPin[p] = i;
+		    used[i] = true;
+		}
+	    }
+	    int order[] = getDefaultPinOrder(sym);
+	    for (i = 0; i != order.length && i < nc; i++) {
+		int p = order[i];
+		if (nodeForPin[p] < 0 && !used[i]) {
+		    nodeForPin[p] = i;
+		    used[i] = true;
+		}
+	    }
+	    for (int p = 0; p != pins.length; p++) {
+		for (i = 0; i != nc && nodeForPin[p] < 0; i++)
+		    if (!used[i]) {
+			nodeForPin[p] = i;
+			used[i] = true;
+		    }
+	    }
+
+	    pinPanel.add(new Label(Locale.LS("Subcircuit node for each pin:")));
+	    pinLists = new ListBox[pins.length];
+	    for (int p = 0; p != pins.length; p++) {
+		HorizontalPanel row = new HorizontalPanel();
+		row.setVerticalAlignment(com.google.gwt.user.client.ui.HasVerticalAlignment.ALIGN_MIDDLE);
+		Label l = new Label(Locale.LS(pins[p]));
+		l.setWidth("170px");
+		row.add(l);
+		ListBox lb = new ListBox();
+		for (i = 0; i != nc; i++) {
+		    String d = headerDescs.get(i);
+		    String n = headerNodes.get(i);
+		    lb.addItem(d.equals(n) ? n : n + " (" + d + ")", Integer.toString(i+1));
+		}
+		lb.setSelectedIndex(nodeForPin[p]);
+		row.add(lb);
+		pinLists[p] = lb;
+		pinPanel.add(row);
+	    }
+	}
+
 
 	protected void closeDialog()
 	{
@@ -167,6 +459,7 @@ ListBox modelList;
 	    nodes = new Vector<String>();
 	    Vector<ExtListEntry> extList = new Vector<ExtListEntry>();
 	    String subcircuitName = null;
+	    String subcircuitDisplayName = null;
 	    outputArea.setText("");
 
 	    // only .model lines: add them to the library (and the menus) instead of making a subcircuit
@@ -184,7 +477,6 @@ ListBox modelList;
 		output(log.toString());
 		if (n > 0)
 		    output(Locale.LS("Done. Choose the model in the component's edit dialog (eg Draw > Diode, then Edit)."));
-		refreshModelList();
 		return;
 	    }
 
@@ -206,6 +498,7 @@ ListBox modelList;
 			    return;
 			}
 			subcircuitName = st.nextToken();
+			subcircuitDisplayName = st.tokenPreserveCase;
 			while (st.hasMoreTokens()) {
 			    String n = st.nextToken();
 			    nodes.add(n);
@@ -520,8 +813,34 @@ ListBox modelList;
 	    ccm.extList = extList;
 	    ccm.convertOldFormatToXml(elmDump, dump);
 
+	    // draw it as the chosen component, with its pins connected to the chosen nodes
+	    String sym = getSelectedSymbol();
+	    if (sym != null) {
+		if (pinLists == null) {
+		    output(Locale.LS("The subcircuit has too few nodes for this component."));
+		    return;
+		}
+		int symNodes[] = new int[pinLists.length];
+		for (int i = 0; i != pinLists.length; i++) {
+		    symNodes[i] = Integer.parseInt(pinLists[i].getValue(pinLists[i].getSelectedIndex()));
+		    if (symNodes[i] > extList.size()) {
+			output(Locale.LS("The pins don't match the subcircuit nodes."));
+			return;
+		    }
+		    for (int j = 0; j != i; j++)
+			if (symNodes[j] == symNodes[i]) {
+			    output(Locale.LS("Two pins are connected to the same node."));
+			    return;
+			}
+		}
+		if (extList.size() > symNodes.length)
+		    output(Locale.LS("Nodes not connected to a pin are left unconnected."));
+		ccm.symbol = sym;
+		ccm.symbolNodes = symNodes;
+	    }
+
 	    EditCompositeModelDialog dlg = new EditCompositeModelDialog();
-	    dlg.defaultName = subcircuitName;
+	    dlg.defaultName = subcircuitDisplayName;
 	    if (!dlg.loadModel(ccm))
 	        return;
 	    closeDialog();

@@ -156,6 +156,7 @@ public class Menus {
 	fileMenuBar.addItem(iconMenuItem("image", "Save As SVG...", new MyCommand("file","exportassvg")));    	
 	fileMenuBar.addItem(iconMenuItem("microchip", "Create Subcircuit...", new MyCommand("file","createsubcircuit")));
 	fileMenuBar.addItem(iconMenuItem("microchip", "Import Subcircuit From Spice...", new MyCommand("file","importfromspice")));
+	fileMenuBar.addItem(iconMenuItem("microchip", "Imported Models...", new MyCommand("file","managemodels")));
 	fileMenuBar.addItem(iconMenuItem("magic", "Find DC Operating Point", new MyCommand("file", "dcanalysis")));
 	recoverItem = iconMenuItem("back-in-time", "Recover Auto-Save", new MyCommand("file","recover"));
 	fileMenuBar.addItem(recoverItem);
@@ -394,6 +395,7 @@ public class Menus {
 	// need this to avoid warnings when setting up unijunction
 	sim.register("CCVSElm", new CCVSElm(0, 0));
 	sim.register("VCCSElm", new VCCSElm(0, 0));
+	sim.register("SubcircuitSymbolElm", new SubcircuitSymbolElm(0, 0));
 
     	MenuBar activeMenuBar = new MenuBar(true);
 	categories.put("active", activeMenuBar);

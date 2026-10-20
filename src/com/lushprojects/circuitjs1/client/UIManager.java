@@ -1447,6 +1447,9 @@ public class UIManager {
 	    int i;
 	    for (i = 0; i != list.size(); i++) {
 		String name = list.get(i).name;
+		// imported op-amps are chosen in the model list of the real op-amp instead
+		if (OpAmpRealElm.isOpAmpModel(list.get(i)))
+		    continue;
 		MenuBar menu = menus.getCategoryMenuBar(mi, UserModelLibrary.getCategory(name));
 		if (menu == null)
 		    menu = menus.subcircuitMenuBar[mi];

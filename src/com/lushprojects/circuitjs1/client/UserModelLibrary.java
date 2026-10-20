@@ -113,7 +113,16 @@ public class UserModelLibrary {
     }
 
     static void removeModel(String name) {
-	entries.remove(name);
+	Entry e = entries.remove(name);
+	// also take it out of the model lists of the elements
+	if (e != null) {
+	    if (e.model instanceof DiodeModel && DiodeModel.modelMap != null)
+		DiodeModel.modelMap.remove(name);
+	    else if (e.model instanceof TransistorModel && TransistorModel.modelMap != null)
+		TransistorModel.modelMap.remove(name);
+	    else if (e.model instanceof MosfetModel && MosfetModel.modelMap != null)
+		MosfetModel.modelMap.remove(name);
+	}
 	Storage stor = getStorage();
 	if (stor != null)
 	    stor.removeItem(MODEL_PREFIX + name);
@@ -349,17 +358,41 @@ public class UserModelLibrary {
     static String getCategory(String subcircuit) {
 	Storage stor = getStorage();
 	String c = (stor == null) ? null : stor.getItem(CATEGORY_PREFIX + subcircuit);
-	return c == null ? CAT_SUBCIRCUITS : c;
+	return c == null ? getDefaultCategory(subcircuit) : c;
+    }
+
+    // subcircuits drawn with a component symbol go with that component by default
+    static String getDefaultCategory(String subcircuit) {
+	CustomCompositeModel m = CustomCompositeModel.getModelWithName(subcircuit);
+	return SubcircuitSymbolElm.getDefaultCategory(m == null ? null : m.symbol);
     }
 
     static void setCategory(String subcircuit, String category) {
 	Storage stor = getStorage();
 	if (stor == null)
 	    return;
-	if (category == null || category.equals(CAT_SUBCIRCUITS))
+	if (category == null || category.equals(getDefaultCategory(subcircuit)))
 	    stor.removeItem(CATEGORY_PREFIX + subcircuit);
 	else
 	    stor.setItem(CATEGORY_PREFIX + subcircuit, category);
+	sequenceNumber++;
+    }
+
+    static void removeCategory(String subcircuit) {
+	Storage stor = getStorage();
+	if (stor != null)
+	    stor.removeItem(CATEGORY_PREFIX + subcircuit);
+	sequenceNumber++;
+    }
+
+    static void renameCategory(String oldName, String newName) {
+	Storage stor = getStorage();
+	if (stor == null)
+	    return;
+	String c = stor.getItem(CATEGORY_PREFIX + oldName);
+	stor.removeItem(CATEGORY_PREFIX + oldName);
+	if (c != null)
+	    stor.setItem(CATEGORY_PREFIX + newName, c);
 	sequenceNumber++;
     }
 

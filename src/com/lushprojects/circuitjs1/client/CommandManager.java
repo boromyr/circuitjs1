@@ -70,6 +70,8 @@ public class CommandManager {
 		doCreateSubcircuit();
     	if (item=="importfromspice")
 		new ImportFromSpiceDialog();
+    	if (item=="managemodels")
+		new ModelManagerDialog();
     	if (item=="dcanalysis")
     	    	doDCAnalysis();
     	if (item=="print")

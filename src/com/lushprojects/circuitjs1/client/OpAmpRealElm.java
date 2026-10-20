@@ -1,7 +1,10 @@
 package com.lushprojects.circuitjs1.client;
 
+import java.util.Vector;
+
 import com.google.gwt.xml.client.Document;
 import com.google.gwt.xml.client.Element;
+import com.lushprojects.circuitjs1.client.util.Locale;
 
 public class OpAmpRealElm extends CompositeElm {
 
@@ -51,10 +54,14 @@ public class OpAmpRealElm extends CompositeElm {
     static final int MODEL_741 = 0;
     static final int MODEL_324 = 1;
     static final int MODEL_324v2 = 2;
+    // op-amp subcircuit imported from SPICE (a CustomCompositeModel with the op-amp symbol)
+    static final int MODEL_SUBCIRCUIT = 3;
     
     private static double[] model741resistances = { 50, 25, 1e3, 50e3, 1e3, 5e3, 50e3, 50, 39e3, 7500, 4500 }; 
 
     int modelType;
+    String subcircuitName;
+    CustomCompositeModel subcircuitModel;
     final int opheight = 16;
     final int opwidth = 32;
     double curCounts[];
@@ -87,12 +94,24 @@ public class OpAmpRealElm extends CompositeElm {
 	initModel();
     }
 
+    public OpAmpRealElm(int xx, int yy, String subcircuit) {
+	super(xx, yy);
+	noDiagonal = true;
+	slewRate = .6;
+	currentLimit = defaultCurrentLimit;
+	modelType = MODEL_SUBCIRCUIT;
+	subcircuitName = subcircuit;
+	initModel();
+    }
+
     private void initModel() {
 	flags |= FLAG_ESCAPE;
+	subcircuitModel = null;
 	switch (modelType) {
 	case MODEL_741: init741(); break;
 	case MODEL_324: init324(); break;
 	case MODEL_324v2: init324v2(); break;
+	case MODEL_SUBCIRCUIT: initSubcircuit(); break;
 	}
 	curCounts = new double[5];
 	setPoints();
@@ -141,22 +160,70 @@ public class OpAmpRealElm extends CompositeElm {
 	loadComposite(st, lm324v2ModelString, lm324v2ExternalNodes);
     }
     
+    // imported op-amp models, which can be chosen in the model list
+    static Vector<CustomCompositeModel> getSubcircuitModels() {
+	Vector<CustomCompositeModel> v = new Vector<CustomCompositeModel>();
+	for (CustomCompositeModel m : CustomCompositeModel.getModelList())
+	    if (isOpAmpModel(m))
+		v.add(m);
+	return v;
+    }
+
+    static boolean isOpAmpModel(CustomCompositeModel m) {
+	return m != null && SubcircuitSymbolElm.SYM_OPAMP.equals(m.symbol) &&
+	    m.symbolNodes != null && m.symbolNodes.length == 5;
+    }
+
+    private void initSubcircuit() {
+	CustomCompositeModel m = CustomCompositeModel.getModelWithName(subcircuitName);
+	if (!isOpAmpModel(m)) {
+	    // model not available (eg not saved in this circuit): use the 741 so the circuit
+	    // still works, and say so in the info box
+	    init741();
+	    return;
+	}
+	subcircuitModel = m;
+	// the model's symbol pins are in our post order: -in, +in, out, V+, V-
+	loadCompositeXml(m.getElmEntries(), m.symbolNodes);
+	allocNodes();
+    }
+
+    // models may have changed (eg a subcircuit was imported or edited)
+    void updateModels() {
+	if (modelType == MODEL_SUBCIRCUIT)
+	    initModel();
+    }
+
+    void dumpXmlModel(Document doc) {
+	if (subcircuitModel == null)
+	    return;
+	for (int i = 0; i < compElmList.size(); i++)
+	    compElmList.get(i).dumpXmlModel(doc);
+	if (!(subcircuitModel.builtin || subcircuitModel.dumped))
+	    subcircuitModel.dumpXml(doc);
+    }
+
     public void reset() {
 	super.reset();
 	curCounts = new double[5];
     }
 
     CapacitorElm getCapacitor() {
-	if (modelType == MODEL_324v2)
+	if (modelType == MODEL_324v2 || subcircuitModel != null)
 	    return null;
+	if (modelType == MODEL_SUBCIRCUIT)
+	    return (CapacitorElm) compElmList.get(20);  // fell back to the 741
 	return ((CapacitorElm) compElmList.get(modelType == MODEL_741 ? 20 : 4));
     }
     
     void dumpXml(Document doc, Element elem) {
+	dumpXmlModel(doc);
 	super.dumpXml(doc, elem);
 	XMLSerializer.dumpAttr(elem, "slr", slewRate);
 	XMLSerializer.dumpAttr(elem, "cl", currentLimit);
 	XMLSerializer.dumpAttr(elem, "mt", modelType);
+	if (modelType == MODEL_SUBCIRCUIT)
+	    XMLSerializer.dumpAttr(elem, "smo", subcircuitName);
     }
     void dumpXmlState(Document doc, Element elem) {
 	CapacitorElm elm = getCapacitor();
@@ -168,6 +235,9 @@ public class OpAmpRealElm extends CompositeElm {
 	slewRate = xml.parseDoubleAttr("slr", slewRate);
 	currentLimit = xml.parseDoubleAttr("cl", currentLimit);
 	modelType = xml.parseIntAttr("mt", modelType);
+	subcircuitName = xml.parseStringAttr("smo", null);
+	if (modelType == MODEL_SUBCIRCUIT && subcircuitName == null)
+	    modelType = MODEL_741;
 	double voltdiff = xml.parseDoubleAttr("vd", 0);
 	initModel();
 	CapacitorElm cap = getCapacitor();
@@ -273,6 +343,9 @@ public class OpAmpRealElm extends CompositeElm {
     String getElmType() { return "op-amp"; }
     void getInfo(String arr[]) {
 	String type = (modelType == MODEL_741) ? "LM741" : "LM324";
+	if (modelType == MODEL_SUBCIRCUIT)
+	    type = (subcircuitModel != null) ? subcircuitName :
+		Locale.LS("missing: ") + subcircuitName + ", LM741";
         arr[0] = "op-amp (" + type + ")";
         arr[1] = "V+ = " + getVoltageText(volts[1]);
         arr[2] = "V- = " + getVoltageText(volts[0]);
@@ -280,20 +353,38 @@ public class OpAmpRealElm extends CompositeElm {
         arr[4] = "Iout = " + getCurrentText(getCurrentIntoNode(2));
     }
     
+    // model type and subcircuit name of each item of the model list
+    Vector<Integer> choiceTypes;
+    Vector<String> choiceNames;
+
+    void addModelChoice(Choice c, String label, int type, String name) {
+	c.add(label);
+	choiceTypes.add(type);
+	choiceNames.add(name);
+	if (type == modelType && (name == null || name.equals(subcircuitName)))
+	    c.select(choiceTypes.size()-1);
+    }
+
     public EditInfo getEditInfo(int n) {
         if (n == 0) {
             EditInfo ei =  new EditInfo(EditInfo.makeLink("opampreal.html", "Model"), modelType);
             ei.choice = new Choice();
-            ei.choice.add("LM741");
+            choiceTypes = new Vector<Integer>();
+            choiceNames = new Vector<String>();
+            addModelChoice(ei.choice, "LM741", MODEL_741, null);
             // hide old 324 model
             if (modelType == MODEL_324) {
-        	ei.choice.add("LM324, old");
-        	ei.choice.add("LM324, fixed");
-                ei.choice.select(modelType);
-            } else {
-        	ei.choice.add("LM324");
-        	ei.choice.select(modelType == MODEL_741 ? 0 : 1);
-            }
+        	addModelChoice(ei.choice, "LM324, old", MODEL_324, null);
+        	addModelChoice(ei.choice, "LM324, fixed", MODEL_324v2, null);
+            } else
+        	addModelChoice(ei.choice, "LM324", MODEL_324v2, null);
+            // op-amps imported from SPICE
+            for (CustomCompositeModel m : getSubcircuitModels())
+        	addModelChoice(ei.choice, m.name, MODEL_SUBCIRCUIT, m.name);
+            // keep a missing model in the list so it isn't lost by editing something else
+            if (modelType == MODEL_SUBCIRCUIT && subcircuitModel == null)
+        	addModelChoice(ei.choice, subcircuitName + " (" + Locale.LS("missing: ").trim() + ")",
+        		MODEL_SUBCIRCUIT, subcircuitName);
             return ei;
         }
         if (n == 1) {
@@ -301,7 +392,7 @@ public class OpAmpRealElm extends CompositeElm {
             ei.checkbox = new Checkbox("Swap Inputs", (flags & FLAG_SWAP) != 0);
             return ei;
         }
-        if (modelType == MODEL_324v2)
+        if (modelType == MODEL_324v2 || modelType == MODEL_SUBCIRCUIT)
             return null;
 	if (n == 2)
 	    return new EditInfo("Slew Rate (V/usec)", slewRate);
@@ -311,9 +402,9 @@ public class OpAmpRealElm extends CompositeElm {
     }
     public void setEditValue(int n, EditInfo ei) {
 	if (n == 0) {
-	    modelType = ei.choice.getSelectedIndex();
-            if (ei.choice.getItemCount() == 2 && modelType == 1)
-        	modelType = MODEL_324v2;
+	    int i = ei.choice.getSelectedIndex();
+	    modelType = choiceTypes.get(i);
+	    subcircuitName = choiceNames.get(i);
 	    capValue = 0;
 	    initModel();
 	    ei.newDialog = true;

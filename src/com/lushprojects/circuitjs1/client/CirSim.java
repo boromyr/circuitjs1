@@ -650,6 +650,13 @@ public class CirSim implements NativePreviewHandler {
     	if (n.startsWith("CustomCompositeElm:")) {
     	    int ix = n.indexOf(':')+1;
     	    String name = n.substring(ix);
+    	    // subcircuits made for a symbol (eg imported from SPICE) are drawn with it;
+    	    // op-amps are models of the real op-amp
+    	    CustomCompositeModel m = CustomCompositeModel.getModelWithName(name);
+    	    if (OpAmpRealElm.isOpAmpModel(m))
+    		return (CircuitElm) new OpAmpRealElm(x1, y1, name);
+    	    if (m != null && m.symbol != null)
+    		return (CircuitElm) new SubcircuitSymbolElm(x1, y1, name);
     	    return (CircuitElm) new CustomCompositeElm(x1, y1, name);
     	}
     	return null;
@@ -670,6 +677,8 @@ public class CirSim implements NativePreviewHandler {
 		    cce.updateModels();
 		}
 	    }
+	    if (ce instanceof SubcircuitSymbolElm && ((SubcircuitSymbolElm) ce).modelName.equals(modelName))
+		ce.updateModels();
 	}
 	needAnalyze();
     }

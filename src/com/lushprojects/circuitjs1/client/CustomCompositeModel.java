@@ -42,6 +42,10 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
     boolean builtin;  // included by default, don't allow deletion
     static int sequenceNumber;
     static final int FLAG_SHOW_LABEL = 1;
+    // symbol to draw instances with (see SubcircuitSymbolElm), or null for a chip box,
+    // and the subcircuit node connected to each pin of the symbol
+    String symbol;
+    int symbolNodes[];
 
     void setName(String n) {
 	if (localModelMap.remove(name) != null) {
@@ -344,6 +348,13 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	XMLSerializer.dumpAttr(elem, "f", flags);
 	XMLSerializer.dumpAttr(elem, "sx", sizeX);
 	XMLSerializer.dumpAttr(elem, "sy", sizeY);
+	if (symbol != null && symbolNodes != null) {
+	    XMLSerializer.dumpAttr(elem, "sym", symbol);
+	    String pins = "";
+	    for (int i = 0; i != symbolNodes.length; i++)
+		pins += (i > 0 ? " " : "") + symbolNodes[i];
+	    XMLSerializer.dumpAttr(elem, "spn", pins);
+	}
 	boolean bcs = busNodesConsecutive();
 	if (bcs)
 	    XMLSerializer.dumpAttr(elem, "bcs", 1);
@@ -411,6 +422,19 @@ public class CustomCompositeModel implements Comparable<CustomCompositeModel> {
 	flags = xml.parseIntAttr("f", flags);
 	sizeX = xml.parseIntAttr("sx", sizeX);
 	sizeY = xml.parseIntAttr("sy", sizeY);
+	symbol = xml.parseStringAttr("sym", null);
+	symbolNodes = null;
+	String pins = xml.parseStringAttr("spn", null);
+	if (symbol != null && pins != null) {
+	    StringTokenizer pst = new StringTokenizer(pins, " ");
+	    Vector<Integer> pv = new Vector<Integer>();
+	    while (pst.hasMoreTokens())
+		pv.add(Integer.parseInt(pst.nextToken()));
+	    symbolNodes = new int[pv.size()];
+	    for (int i = 0; i != symbolNodes.length; i++)
+		symbolNodes[i] = pv.get(i);
+	} else
+	    symbol = null;
 	boolean bcs = xml.parseIntAttr("bcs", 0) != 0;
 	extList = new Vector<ExtListEntry>();
 

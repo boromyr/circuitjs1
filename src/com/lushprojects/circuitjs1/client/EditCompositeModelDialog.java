@@ -176,8 +176,11 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		Anchor a;
 		vp=new VerticalPanel();
 		setWidget(vp);
-		setText(Locale.LS("Edit Subcircuit Pin Layout"));
-		vp.add(new Label(Locale.LS("Drag the pins to the desired position")));
+		// subcircuits drawn with a component symbol have no pin layout to edit
+		boolean hasSymbol = (model.symbol != null);
+		setText(Locale.LS(hasSymbol ? "Subcircuit Properties" : "Edit Subcircuit Pin Layout"));
+		if (!hasSymbol)
+		    vp.add(new Label(Locale.LS("Drag the pins to the desired position")));
 		Date date = new Date();
 
 		Canvas canvas = Canvas.createIfSupported();
@@ -186,6 +189,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		canvas.setCoordinateSpaceWidth(400);
 		canvas.setCoordinateSpaceHeight(400);
 		vp.add(canvas);
+		canvas.setVisible(!hasSymbol);
 		MouseManager.doTouchHandlers(null, canvas.getCanvasElement());
 		context = canvas.getContext2d();
 		
@@ -245,6 +249,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
                 });
 		vp.add(hp);
 		hp.addStyleName("topSpace");
+		hp.setVisible(!hasSymbol);
 		vp.add(labelCheck = new Checkbox(Locale.LS("Show Label")));
 		labelCheck.setState(model.showLabel());
 		labelCheck.addClickHandler(new ClickHandler() {
@@ -280,7 +285,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		categoryLabel.getElement().getStyle().setMarginRight(8, com.google.gwt.dom.client.Style.Unit.PX);
 		categoryPanel.add(categoryLabel);
 		categoryChoice = new Choice();
-		String cat = (model.name == null) ? UserModelLibrary.CAT_SUBCIRCUITS : UserModelLibrary.getCategory(model.name);
+		String cat = (model.name == null) ? SubcircuitSymbolElm.getDefaultCategory(model.symbol) : UserModelLibrary.getCategory(model.name);
 		for (int i = 0; i != UserModelLibrary.categoryKeys.length; i++) {
 		    categoryChoice.addItem(UserModelLibrary.getCategoryLabel(i));
 		    if (UserModelLibrary.categoryKeys[i].equals(cat))
@@ -288,6 +293,14 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		}
 		categoryPanel.add(categoryChoice);
 		vp.add(categoryPanel);
+		// imported op-amps aren't in the menus, they are models of the real op-amp
+		if (SubcircuitSymbolElm.SYM_OPAMP.equals(model.symbol)) {
+		    categoryPanel.setVisible(false);
+		    labelCheck.setVisible(false);
+		    Label l = new Label(Locale.LS("Choose this model in the edit dialog of Op Amp (real)."));
+		    l.addStyleName("topSpace");
+		    vp.add(l);
+		}
 	
                 canvas.addMouseDownHandler(this);
                 canvas.addMouseUpHandler(this);
