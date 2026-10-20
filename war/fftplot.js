@@ -17,7 +17,7 @@
 	var WIN_NAME = 'circuitjs-fft';
 	var STORE = 'fftPlot.';
 	var TRACE_COLORS = ['#27ae60', '#c0392b', '#8e44ad', '#16a085', '#d4a017', '#7f8c8d'];
-	var SIZES = [1024, 2048, 4096, 8192, 16384, 32768, 65536];
+	var SIZES = [1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144];
 	var FMAX = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000];
 
 	// coherent gain, equivalent noise bandwidth and the half width (in bins) of the main
@@ -26,7 +26,16 @@
 		rect: { lobe: 1, f: function () { return 1; } },
 		hann: { lobe: 2, f: function (x) { return 0.5 - 0.5 * Math.cos(2 * Math.PI * x); } },
 		hamming: { lobe: 2, f: function (x) { return 0.54 - 0.46 * Math.cos(2 * Math.PI * x); } },
-		bh: { lobe: 4, f: function (x) {
+		// 7-term Blackman-Harris: sidelobes below -177 dB.  With the 4-term one (-92 dB, falling
+		// 6 dB/octave) a strong tone leaks a floor and a skirt whose level changes with its phase
+		// at every refresh, unless the block holds a whole number of its periods (see plan())
+		bh: { lobe: 7, f: function (x) {
+			var a = 2 * Math.PI * x;
+			return 0.27105140069342 - 0.43329793923448 * Math.cos(a) + 0.21812299954311 * Math.cos(2 * a) -
+				0.06592544638803 * Math.cos(3 * a) + 0.01081174209837 * Math.cos(4 * a) -
+				0.00077658482522 * Math.cos(5 * a) + 0.00001388721735 * Math.cos(6 * a);
+		} },
+		bh4: { lobe: 4, f: function (x) {
 			var a = 2 * Math.PI * x;
 			return 0.35875 - 0.48829 * Math.cos(a) + 0.14128 * Math.cos(2 * a) - 0.01168 * Math.cos(3 * a);
 		} },
@@ -90,7 +99,7 @@
 			noOutput: 'No signal: add a labeled node, an Output or a voltmeter.',
 			needOut: 'Needs a labeled node, an Output or a voltmeter as the signal',
 			acquiring: 'Acquiring: {n}%', paused: 'Start the simulation to acquire the samples',
-			wins: { rect: 'Rectangular', hann: 'Hann', hamming: 'Hamming', bh: 'Blackman-Harris', flattop: 'Flat top' },
+			wins: { rect: 'Rectangular', hann: 'Hann', hamming: 'Hamming', bh: 'Blackman-Harris 7', bh4: 'Blackman-Harris 4', flattop: 'Flat top' },
 			scales: { dbv: 'dBV (RMS)', dbc: 'dBc (rel. fundamental)', vrms: 'V RMS', vpk: 'V peak' },
 			axis: { dbv: 'Level (dBV)', dbc: 'Level (dBc)', vrms: 'Amplitude (V RMS)', vpk: 'Amplitude (V peak)' },
 			m: {
@@ -100,6 +109,7 @@
 			},
 			info: 'N = {N}, fs = {fs}, Δf = {df}, T = {T}, {w}{avg}', avgOf: ', average {a}/{b}',
 			lowRes: 'Resolution too low for this frequency: use more points (or Auto)',
+			lowResAuto: 'Resolution too low for this frequency: lower the maximum frequency',
 			node: 'Node «{n}»', out: 'Output #{n}', probe: 'Voltmeter #{n}',
 			step: 'The time step changed: acquisition restarted.'
 		},
@@ -117,7 +127,7 @@
 			noOutput: 'Nessun segnale: aggiungi un\'etichetta (Labeled Node), un Output o un voltmetro.',
 			needOut: 'Serve un nodo etichettato, un Output o un voltmetro come segnale',
 			acquiring: 'Acquisizione: {n}%', paused: 'Avvia la simulazione per acquisire i campioni',
-			wins: { rect: 'Rettangolare', hann: 'Hann', hamming: 'Hamming', bh: 'Blackman-Harris', flattop: 'Flat top' },
+			wins: { rect: 'Rettangolare', hann: 'Hann', hamming: 'Hamming', bh: 'Blackman-Harris 7', bh4: 'Blackman-Harris 4', flattop: 'Flat top' },
 			scales: { dbv: 'dBV (RMS)', dbc: 'dBc (rel. fondamentale)', vrms: 'V RMS', vpk: 'V picco' },
 			axis: { dbv: 'Livello (dBV)', dbc: 'Livello (dBc)', vrms: 'Ampiezza (V RMS)', vpk: 'Ampiezza (V picco)' },
 			m: {
@@ -127,6 +137,7 @@
 			},
 			info: 'N = {N}, fs = {fs}, Δf = {df}, T = {T}, {w}{avg}', avgOf: ', media {a}/{b}',
 			lowRes: 'Risoluzione insufficiente per questa frequenza: usa più punti (o Auto)',
+			lowResAuto: 'Risoluzione insufficiente per questa frequenza: riduci la frequenza massima',
 			node: 'Nodo «{n}»', out: 'Uscita (Output) #{n}', probe: 'Voltmetro #{n}',
 			step: 'Il passo temporale è cambiato: acquisizione ricominciata.'
 		}
@@ -184,7 +195,10 @@
 		if (a >= 1) return v.toPrecision(4) + ' V';
 		if (a >= 1e-3) return (v * 1e3).toPrecision(4) + ' mV';
 		if (a >= 1e-6) return (v * 1e6).toPrecision(4) + ' µV';
-		return (v * 1e9).toPrecision(4) + ' nV';
+		if (a >= 1e-9) return (v * 1e9).toPrecision(4) + ' nV';
+		if (a >= 1e-12) return (v * 1e12).toPrecision(4) + ' pV';
+		if (a >= 1e-15) return (v * 1e15).toPrecision(4) + ' fV';
+		return v.toExponential(3) + ' V';
 	}
 	function fmtAxisV(v) {
 		var a = Math.abs(v);
@@ -192,7 +206,9 @@
 		if (a >= 1) return trim(v);
 		if (a >= 1e-3) return trim(v * 1e3) + 'm';
 		if (a >= 1e-6) return trim(v * 1e6) + 'µ';
-		return trim(v * 1e9) + 'n';
+		if (a >= 1e-9) return trim(v * 1e9) + 'n';
+		if (a >= 1e-12) return trim(v * 1e12) + 'p';
+		return trim(v * 1e15) + 'f';
 	}
 	function fmtPct(r) {
 		var p = r * 100;
@@ -262,9 +278,21 @@
 		return (winCache[key] = { w: w, cg: sum / n, enbw: n * sum2 / (sum * sum) });
 	}
 
+	// cos and -sin of 2 pi k / n for k < n/2, each computed on its own: the usual recurrence
+	// from one twiddle factor to the next drifts, and leaves a floor at -250 dB with 64k points
+	// (-230 dB with 256k), within the range of the plot
+	var twCache = {};
+	function twiddles(n) {
+		if (twCache[n]) return twCache[n];
+		var c = new Float64Array(n / 2), s = new Float64Array(n / 2);
+		for (var k = 0; k < n / 2; k++) { c[k] = Math.cos(2 * Math.PI * k / n); s[k] = -Math.sin(2 * Math.PI * k / n); }
+		if (Object.keys(twCache).length > 4) twCache = {};
+		return (twCache[n] = { c: c, s: s });
+	}
+
 	// in-place radix-2 FFT of re/im (length a power of 2)
 	function fft(re, im) {
-		var n = re.length, i, j, k, len;
+		var n = re.length, i, j, k, len, tw = twiddles(n);
 		for (i = 1, j = 0; i < n; i++) {
 			var bit = n >> 1;
 			for (; j & bit; bit >>= 1) j ^= bit;
@@ -275,18 +303,63 @@
 			}
 		}
 		for (len = 2; len <= n; len <<= 1) {
-			var ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang), half = len >> 1;
+			var half = len >> 1, step = n / len;
 			for (i = 0; i < n; i += len) {
-				var cr = 1, ci = 0;
 				for (k = 0; k < half; k++) {
-					var a = i + k, b = a + half;
+					var a = i + k, b = a + half, cr = tw.c[k * step], ci = tw.s[k * step];
 					var xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
 					re[b] = re[a] - xr; im[b] = im[a] - xi;
 					re[a] += xr; im[a] += xi;
-					var nr = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = nr;
 				}
 			}
 		}
+	}
+
+	// chirp of Bluestein's algorithm for length n, and the FFT of its conjugate laid out for
+	// a circular convolution of length m (a power of 2, at least 2n - 1)
+	var czCache = null;
+	function chirp(n) {
+		if (czCache && czCache.n === n) return czCache;
+		var m = 1;
+		while (m < 2 * n - 1) m <<= 1;
+		var wr = new Float64Array(n), wi = new Float64Array(n), br = new Float64Array(m), bi = new Float64Array(m);
+		for (var i = 0; i < n; i++) {
+			// exp(-i pi i^2 / n), with i^2 reduced first (exact for any length used here)
+			var a = Math.PI * ((i * i) % (2 * n)) / n;
+			wr[i] = Math.cos(a); wi[i] = -Math.sin(a);
+		}
+		br[0] = 1;
+		for (i = 1; i < n; i++) { br[i] = br[m - i] = wr[i]; bi[i] = bi[m - i] = -wi[i]; }
+		fft(br, bi);
+		return (czCache = { n: n, m: m, wr: wr, wi: wi, br: br, bi: bi });
+	}
+
+	// DFT of a real block of any length: re/im of bins 0 to n/2.  A power of 2 goes straight to
+	// the FFT, other lengths (a whole number of periods, see plan()) through Bluestein's
+	// algorithm, a convolution with a chirp done with two more FFTs
+	function dft(x) {
+		var n = x.length, nb = (n >> 1) + 1, i, re, im;
+		if ((n & (n - 1)) === 0) {
+			re = Float64Array.from(x); im = new Float64Array(n);
+			fft(re, im);
+			return { re: re, im: im };
+		}
+		var cz = chirp(n), m = cz.m, ar = new Float64Array(m), ai = new Float64Array(m);
+		for (i = 0; i < n; i++) { ar[i] = x[i] * cz.wr[i]; ai[i] = x[i] * cz.wi[i]; }
+		fft(ar, ai);
+		// times the transform of the conjugate chirp, conjugated: the next FFT is then the inverse one
+		for (i = 0; i < m; i++) {
+			var r = ar[i] * cz.br[i] - ai[i] * cz.bi[i], q = ar[i] * cz.bi[i] + ai[i] * cz.br[i];
+			ar[i] = r; ai[i] = -q;
+		}
+		fft(ar, ai);
+		re = new Float64Array(nb); im = new Float64Array(nb);
+		for (var k = 0; k < nb; k++) {
+			var cr = ar[k] / m, ci = -ai[k] / m;
+			re[k] = cr * cz.wr[k] - ci * cz.wi[k];
+			im[k] = cr * cz.wi[k] + ci * cz.wr[k];
+		}
+		return { re: re, im: im };
 	}
 
 	// spectrum of the block x: rms[k] is the RMS amplitude of a tone at bin k, pw[k] the
@@ -294,16 +367,16 @@
 	// lobe or a band of noise gives its power)
 	function analyze(x, dt, sumPower) {
 		var n = x.length, wt = windowTable(settings.window, n);
-		var re = new Float64Array(n), im = new Float64Array(n);
+		var xw = new Float64Array(n);
 		var mean = 0, sq = 0, lo = Infinity, hi = -Infinity;
 		for (var i = 0; i < n; i++) {
 			var v = x[i];
 			mean += v; sq += v * v;
 			if (v < lo) lo = v; if (v > hi) hi = v;
-			re[i] = v * wt.w[i];
+			xw[i] = v * wt.w[i];
 		}
-		fft(re, im);
-		var nb = n / 2 + 1, p2 = new Float64Array(nb);
+		var X = dft(xw), re = X.re, im = X.im;
+		var nb = (n >> 1) + 1, p2 = new Float64Array(nb);
 		var norm = 1 / (n * wt.cg);
 		// DC as the windowed mean (bin 0, with its sign): a plain mean over a block that is not
 		// a whole number of periods still contains part of the signal
@@ -311,7 +384,7 @@
 		for (var k = 0; k < nb; k++) {
 			var a = Math.sqrt(re[k] * re[k] + im[k] * im[k]) * norm;
 			// one-sided: bins other than DC and Nyquist carry half of the tone each side
-			var pk = (k === 0 || k === n / 2) ? a : 2 * a;
+			var pk = (k === 0 || 2 * k === n) ? a : 2 * a;
 			// squared RMS amplitude (DC is its own RMS value)
 			p2[k] = k === 0 ? pk * pk : pk * pk / 2;
 		}
@@ -329,7 +402,10 @@
 	function measure(s, hint) {
 		// bins above kband are in the transition band of the decimation filter: they are
 		// neither noise nor harmonics
-		var nb = s.rms.length, L = s.lobe, used = new Uint8Array(nb), kband = Math.min(nb - 1, s.kband || nb - 1);
+		// with a whole number of periods in the block (s.coherent) DC and the tones of the source
+		// frequency fall exactly on bins, where a cosine-sum window of L terms spreads them over
+		// L - 1 bins each side, instead of L
+		var nb = s.rms.length, L = s.coherent ? s.lobe - 1 : s.lobe, used = new Uint8Array(nb), kband = Math.min(nb - 1, s.kband || nb - 1);
 		var m = { dc: s.mean, totalRms: s.totalRms, vpp: s.vpp, harmonics: [] };
 		// power of a tone: its main lobe, without the bins already given to another tone
 		function lobePower(k) {
@@ -350,11 +426,14 @@
 			if (kb > 0 && s.rms[kb] > best * 1e-3) k0 = kb;
 		}
 		if (k0 < 0 || best <= 0) { m.fund = null; return m; }
+		// a fundamental other than the source frequency is between bins
+		var onBin = s.coherent && hint > 0 && k0 === kh0;
+		if (!onBin) L = s.lobe;
 		// the fundamental lobe must stay clear of DC and of the second harmonic
 		m.lowRes = k0 < 2 * L + 1;
 		// frequency between bins from the parabola through the log magnitudes
 		var a = Math.log(Math.max(s.rms[k0 - 1], 1e-300)), b = Math.log(s.rms[k0]), c = Math.log(Math.max(s.rms[k0 + 1], 1e-300));
-		var d = (a - 2 * b + c) !== 0 ? 0.5 * (a - c) / (a - 2 * b + c) : 0;
+		var d = !onBin && (a - 2 * b + c) !== 0 ? 0.5 * (a - c) / (a - 2 * b + c) : 0;
 		if (!isFinite(d) || Math.abs(d) > 0.5) d = 0;
 		var p1 = lobePower(k0);
 		var kf = k0 + d;
@@ -435,7 +514,7 @@
 		'<label><span class="lbl">' + S.points + '</span> <select id="selN"><option value="auto">' + S.auto + '</option>' +
 			options(SIZES.map(function (n) { return [n, n >= 1024 ? (n / 1024) + 'k' : n]; })) + '</select></label>' +
 		'<label><span class="lbl">' + S.window + '</span> <select id="selWin">' +
-			options(['bh', 'hann', 'hamming', 'flattop', 'rect'].map(function (w) { return [w, S.wins[w]]; })) + '</select></label>' +
+			options(['bh', 'bh4', 'hann', 'hamming', 'flattop', 'rect'].map(function (w) { return [w, S.wins[w]]; })) + '</select></label>' +
 		'<label><span class="lbl">' + S.avg + '</span> <select id="selAvg">' +
 			options([1, 2, 4, 8, 16, 32].map(function (a) { return [a, a === 1 ? '—' : '×' + a]; })) + '</select></label>' +
 		'<span class="sep"></span>' +
@@ -654,13 +733,18 @@
 	}
 
 	// With "Auto" points the capture lasts about AUTO_CYCLES periods of the source, so the
-	// fundamental is at least 12 bins from DC and its harmonics are well apart whatever its frequency.
+	// fundamental is at least 16 bins from DC (clear of the 7-bin main lobes) and its harmonics are well apart whatever its frequency.
 	// That can be many time steps (0.5 s of a 40 Hz signal is 100000 steps of 5 us): they are
 	// low-pass filtered and decimated by r so the FFT stays at most AUTO_MAX_FFT points.
 	// Fixed points use every time step.  raw is the number of time steps needed.
-	var AUTO_CYCLES = 12, AUTO_DF = 5, PREVIEW_CYCLES = 5, AUTO_MIN_FFT = 4096, AUTO_MAX_FFT = 16384, AUTO_LIMIT_FFT = 65536, MAX_RAW = 600000;
+	// With a source frequency the block then holds a whole number of its periods (see
+	// wholePeriods()): the size is near the power of 2 chosen (a fixed one is not exceeded).
+	var AUTO_CYCLES = 16, AUTO_DF = 5, PREVIEW_CYCLES = 5, AUTO_MIN_FFT = 4096, AUTO_MAX_FFT = 16384, AUTO_LIMIT_FFT = 262144, MAX_RAW = 600000;
 	function plan(dt, hint) {
-		if (settings.size !== 'auto') return { n: settings.size, r: 1, raw: settings.size, key: 'n' + settings.size };
+		if (settings.size !== 'auto') {
+			var nf = hint > 0 ? wholePeriods(settings.size, 1 / (hint * dt)) : settings.size;
+			return { n: nf, r: 1, raw: nf, key: 'n' + nf };
+		}
 		// a self-oscillating circuit has no source frequency: use the last measured one
 		// (rounded to a power of 2, so the plan does not change at every refresh)
 		var f0 = hint > 0 ? hint : autoF0 > 0 ? autoF0 : 1000;
@@ -675,22 +759,55 @@
 		while (need / r > AUTO_MAX_FFT && r * 2 <= rMax) r *= 2;
 		var n = AUTO_MIN_FFT;
 		while (n < need / r && n < AUTO_LIMIT_FFT) n *= 2;
+		if (hint > 0) n = wholePeriods(n, 1 / (hint * dt * r), Math.max(n, Math.min(2 * n, AUTO_LIMIT_FFT, Math.floor(MAX_RAW / r))));
 		var raw = r > 1 ? (n - 1) * r + firTaps(r) : n;
 		return { n: n, r: r, raw: raw, key: n + 'x' + r };
 	}
 
-	// Decimation filter: windowed-sinc low pass (Blackman, about -74 dB) cutting at 0.45 of the
-	// new sampling rate; everything above PASSBAND (as a fraction of it) is in the transition
-	// band and left out of the plot and the measurements.  Alias products only fall above it.
-	var PASSBAND = 0.36, firCache = {};
-	function firTaps(r) { return 32 * r + 1; }
+	// whether n points of step dt (as cycles of the source: f0 dt) hold a whole number of periods
+	function isWhole(n, cycles) {
+		var c = n * cycles;
+		return cycles > 0 && c >= 1 && Math.abs(c - Math.round(c)) < 1e-6;
+	}
+
+	// The number of points closest to n0 (from 3/4 of it up to nlim) that holds a whole number of
+	// periods of p points, or failing that the closest to it.  The source frequency and its
+	// harmonics then fall exactly on bins, where a cosine-sum window leaks nothing at all:
+	// otherwise its leakage (from -180 dB down with the 7-term window) changes with the phase
+	// of the signal at every refresh.  (122 Hz with 5 us steps takes 61 periods, for example.)
+	function wholePeriods(n0, p, nlim) {
+		var c0 = Math.floor(n0 / p), lo = Math.max(1, Math.ceil(0.75 * n0 / p)), hi = Math.floor(Math.max(n0, nlim || n0) / p);
+		if (!(c0 >= 1)) return n0;
+		var best = n0, bestErr = Infinity;
+		// the nearest first, below and above in turn; a farther one has to fit much better
+		for (var i = 0; c0 - i >= lo || c0 + i < hi; i++) {
+			for (var c = c0 - i; c <= c0 + i + 1; c += 2 * i + 1) {
+				if (c < lo || c > hi) continue;
+				var n = Math.round(c * p), err = Math.abs(c * p - n) / p;   // off a bin by err
+				if (n >= 16 && err < bestErr / 4) { best = n; bestErr = err; }
+			}
+			if (bestErr < 1e-7) break;
+		}
+		return best;
+	}
+
+	// Decimation filter: windowed-sinc low pass (Kaiser, stop band below -160 dB) cutting at half
+	// the new sampling rate.  Above PASSBAND (as a fraction of it) is the transition band, left
+	// out of the plot and the measurements; what lies above 1 - PASSBAND, which would fold back
+	// into the band below, is in the stop band.
+	var PASSBAND = 0.36, KAISER_BETA = 17, firCache = {};
+	function firTaps(r) { return 40 * r + 1; }
+	function besselI0(x) {
+		var s = 1, t = 1;
+		for (var k = 1; k < 500 && t > s * 1e-17; k++) { t *= (x / (2 * k)) * (x / (2 * k)); s += t; }
+		return s;
+	}
 	function firFilter(r) {
 		if (firCache[r]) return firCache[r];
-		var m = firTaps(r), c = (m - 1) / 2, fc = 0.45 / r, h = new Float64Array(m), sum = 0;
+		var m = firTaps(r), c = (m - 1) / 2, fc = 0.5 / r, h = new Float64Array(m), sum = 0, i0 = besselI0(KAISER_BETA);
 		for (var i = 0; i < m; i++) {
-			var x = i - c, s = x === 0 ? 2 * fc : Math.sin(2 * Math.PI * fc * x) / (Math.PI * x);
-			var w = 0.42 - 0.5 * Math.cos(2 * Math.PI * i / (m - 1)) + 0.08 * Math.cos(4 * Math.PI * i / (m - 1));
-			h[i] = s * w; sum += h[i];
+			var x = i - c, s = x === 0 ? 2 * fc : Math.sin(2 * Math.PI * fc * x) / (Math.PI * x), u = x / c;
+			h[i] = s * besselI0(KAISER_BETA * Math.sqrt(Math.max(0, 1 - u * u))) / i0; sum += h[i];
 		}
 		for (i = 0; i < m; i++) h[i] /= sum;
 		return (firCache[r] = h);
@@ -768,6 +885,7 @@
 				// window empty
 				var avail = Math.floor(span / dt), np = 1024;
 				while (np * 2 <= pl.n && (pl.r > 1 ? (np * 2 - 1) * pl.r + firTaps(pl.r) : np * 2) <= avail) np *= 2;
+				if (hint > 0) np = wholePeriods(np, 1 / (hint * dt * pl.r));
 				var rawp = pl.r > 1 ? (np - 1) * pl.r + firTaps(pl.r) : np;
 				var f0p = hint > 0 ? hint : autoF0;
 				if (settings.size === 'auto' && rawp <= avail && f0p > 0 && rawp * dt * f0p >= PREVIEW_CYCLES &&
@@ -788,6 +906,7 @@
 				spec = analyze(x, dt * pl.r, preview ? null : averager(key, settings.averages));
 				spec.kband = pl.r > 1 ? Math.floor(PASSBAND * x.length) : spec.rms.length - 1;
 				spec.preview = preview;
+				spec.coherent = isWhole(x.length, hint * dt * pl.r);
 				spec.T = raw.length * dt;
 				if (pl.r > 1) {
 					// RMS and peak to peak of the signal itself, not of the filtered one
@@ -817,7 +936,7 @@
 			else if (progress < 1 && (!spec || spec.preview)) parts.push('<b>' + (running ? fmt(S.acquiring, Math.floor(progress * 100)) : S.paused) + '</b>');
 			if (spec) {
 				var avgTxt = settings.averages > 1 && avg ? S.avgOf.replace('{a}', avg.list.length).replace('{b}', settings.averages) : '';
-				if (meas && meas.lowRes && !spec.preview) parts.push('<b>' + S.lowRes + '</b>');
+				if (meas && meas.lowRes && !spec.preview) parts.push('<b>' + (settings.size === 'auto' ? S.lowResAuto : S.lowRes) + '</b>');
 				parts.push(S.info.replace('{N}', spec.n).replace('{fs}', fmtFreq(1 / spec.dt)).
 					replace('{df}', fmtFreqPrecise(spec.df, spec.df * 10)).replace('{T}', fmtTime(spec.T || spec.n * spec.dt)).
 					replace('{w}', S.wins[settings.window]).replace('{avg}', avgTxt));
@@ -936,20 +1055,25 @@
 
 		// level range
 		var ymax, ymin;
-		var vmax = -Infinity, vmin = Infinity;
+		var vmax = -Infinity, vmin = Infinity, vals = [];
 		traces.forEach(function (tr) {
 			var f = scaleFn(refOf(tr));
 			for (var k = 1; k < tr.s.rms.length; k++) {
 				if (k * tr.s.df > fmax) break;
 				var v = f(tr.s.rms[k]);
-				if (isFinite(v)) { if (v > vmax) vmax = v; if (v < vmin) vmin = v; }
+				if (isFinite(v)) { if (v > vmax) vmax = v; if (v < vmin) vmin = v; vals.push(v); }
 			}
 		});
+		// the noise floor: a low percentile of the levels, so that the deep dips between bins
+		// do not stretch the scale.  It can be the rounding of the simulation itself, 310 to 370 dB
+		// under the signal (spread over more bins, the more points).
+		var vfloor = vmin;
+		if (vals.length > 100) { var sv = Float64Array.from(vals).sort(); vfloor = sv[Math.floor(sv.length * 0.01)]; }
 		if (isDb) {
 			if (settings.yRange === 'auto') {
-				if (!isFinite(vmax)) { vmax = 0; vmin = -120; }
+				if (!isFinite(vmax)) { vmax = 0; vfloor = -120; }
 				ymax = Math.ceil((vmax + 5) / 10) * 10;
-				ymin = Math.max(ymax - 180, Math.floor((vmin - 5) / 10) * 10);
+				ymin = autoBottom('db' + settings.scale + ymax, Math.max(ymax - 420, Math.floor((vfloor - 5) / 20) * 20), 40);
 				if (ymax - ymin < 40) ymin = ymax - 40;
 			} else if (settings.yRange === 'custom') {
 				ymax = Math.max(settings.yMax, settings.yMin);
@@ -960,10 +1084,10 @@
 				ymax = +p[0]; ymin = +p[1];
 			}
 		} else if (isLogV) {
-			// whole decades, from just above the highest component down to the noise, at most 9
-			if (!isFinite(vmax)) { vmax = 0; vmin = -6; }
+			// whole decades, from just above the highest component down to the noise, at most 21
+			if (!isFinite(vmax)) { vmax = 0; vfloor = -6; }
 			ymax = Math.ceil(vmax + 0.15);
-			ymin = Math.max(ymax - 9, Math.floor(vmin - 0.3));
+			ymin = autoBottom('logv' + settings.scale + ymax, Math.max(ymax - 21, Math.floor(vfloor - 0.3)), 2);
 			if (ymax - ymin < 3) ymin = ymax - 3;
 		} else {
 			ymax = isFinite(vmax) && vmax > 0 ? vmax * 1.1 : 1;
@@ -1018,7 +1142,7 @@
 			}
 		} else {
 			var ystep = isDb ? niceStep((ymax - ymin) / 1.2) : niceLin(ymax, Math.max(2, Math.floor(ph / 45)));
-			if (isDb && ymax - ymin > 100) ystep = Math.max(ystep, 20);
+			if (isDb && ymax - ymin > 100) ystep = ymax - ymin > 200 ? 40 : 20;
 			for (var v = Math.ceil(ymin / ystep) * ystep; v <= ymax + 1e-12; v += ystep) {
 				var y = Math.round(Y(v)) + 0.5;
 				g.strokeStyle = Math.abs(v) < ystep * 1e-6 ? '#c0c0c0' : '#e3e3e3';
@@ -1157,6 +1281,15 @@
 	// through the bins: a monotone cubic (Fritsch-Butland) of the log amplitude, so it never
 	// overshoots them.  Only for the drawing: measurements and the cursor use the bins.
 	// Cached for the same axis.
+	// bottom of the automatic range: it moves down at once, but up only when the floor rises by
+	// more than hyst, so that it does not jump at every refresh with a floor near a step
+	var autoLo = null;
+	function autoBottom(key, lo, hyst) {
+		if (autoLo && autoLo.key === key && lo > autoLo.lo && lo - autoLo.lo < hyst) lo = autoLo.lo;
+		autoLo = { key: key, lo: lo };
+		return lo;
+	}
+
 	function plotPoints(s, logF, fmin, fmax, X, pw) {
 		var key = logF + '|' + fmin + '|' + fmax + '|' + pw;
 		if (s.pts && s.pts.key === key) return s.pts;
@@ -1219,5 +1352,5 @@
 	};
 	if (window.CircuitJS1) init(window.CircuitJS1);
 
-	window.CircuitJSFFT = { open: open, _test: { fft: fft, analyze: analyze, measure: measure, settings: settings, plan: plan, plotPoints: plotPoints, decimate: decimate, resample: resample, blockStats: blockStats, PASSBAND: PASSBAND } };
+	window.CircuitJSFFT = { open: open, _test: { fft: fft, analyze: analyze, measure: measure, settings: settings, plan: plan, plotPoints: plotPoints, decimate: decimate, dft: dft, firFilter: firFilter, wholePeriods: wholePeriods, isWhole: isWhole, resample: resample, blockStats: blockStats, PASSBAND: PASSBAND } };
 })();
