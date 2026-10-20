@@ -31,6 +31,7 @@ import java.util.Vector;
 
 import com.google.gwt.event.dom.client.ClickEvent;
 import com.google.gwt.user.client.ui.Label;
+import com.google.gwt.user.client.ui.ListBox;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
 public class ImportFromSpiceDialog extends DialogBox {
@@ -39,6 +40,7 @@ VerticalPanel vp;
 HorizontalPanel hp;
 TextArea textArea;
 TextArea outputArea;
+ListBox modelList;
 
 	public ImportFromSpiceDialog() {
 		super();
@@ -47,6 +49,7 @@ TextArea outputArea;
 		setWidget(vp);
 		setText(Locale.LS("Import Subcircuit from Spice"));
 		vp.add(new Label(Locale.LS("Paste the text file for your subcircuit here...")));
+		vp.add(new Label(Locale.LS("or .model lines (diodes, BJTs, JFETs, MOSFETs) to add them to the model lists")));
 		vp.add(textArea = new TextArea());
 		textArea.getElement().setAttribute("spellcheck", "false");
 		textArea.setWidth("300px");
@@ -68,8 +71,33 @@ TextArea outputArea;
 				closeDialog();
 			}
 		});
+
+		// imported device models, with a way to remove them from the menus
+		vp.add(new Label(Locale.LS("Imported models")));
+		HorizontalPanel mp = new HorizontalPanel();
+		vp.add(mp);
+		mp.add(modelList = new ListBox());
+		modelList.setWidth("200px");
+		Button deleteButton;
+		mp.add(deleteButton = new Button(Locale.LS("Delete")));
+		deleteButton.addClickHandler(new ClickHandler() {
+			public void onClick(ClickEvent event) {
+			    int i = modelList.getSelectedIndex();
+			    if (i < 0)
+				return;
+			    UserModelLibrary.removeModel(modelList.getValue(i));
+			    refreshModelList();
+			}
+		});
+		refreshModelList();
 		this.center();
 		show();
+	}
+
+	void refreshModelList() {
+	    modelList.clear();
+	    for (UserModelLibrary.Entry e : UserModelLibrary.getEntries())
+		modelList.addItem(e.name + " (" + e.type.toUpperCase() + ")", e.name);
 	}
 
 	protected void closeDialog()
@@ -140,6 +168,25 @@ TextArea outputArea;
 	    Vector<ExtListEntry> extList = new Vector<ExtListEntry>();
 	    String subcircuitName = null;
 	    outputArea.setText("");
+
+	    // only .model lines: add them to the library (and the menus) instead of making a subcircuit
+	    boolean hasSubckt = false, hasModel = false;
+	    for (String l : lines) {
+		String t = l.trim().toLowerCase();
+		if (t.startsWith(".subckt"))
+		    hasSubckt = true;
+		if (t.startsWith(".model"))
+		    hasModel = true;
+	    }
+	    if (hasModel && !hasSubckt) {
+		StringBuilder log = new StringBuilder();
+		int n = UserModelLibrary.importModels(lines, log);
+		output(log.toString());
+		if (n > 0)
+		    output(Locale.LS("Done. Choose the model in the component's edit dialog (eg Draw > Diode, then Edit)."));
+		refreshModelList();
+		return;
+	    }
 
 	    // first pass, get a list of models and nodes
 	    int ln;

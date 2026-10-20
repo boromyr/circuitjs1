@@ -24,6 +24,9 @@ package com.lushprojects.circuitjs1.client;
 // For information about the theory behind this, see Electronic Circuit & System Simulation Methods by Pillage
 // or https://github.com/sharpie7/circuitjs1/blob/master/INTERNALS.md
 
+import java.util.HashMap;
+import java.util.Vector;
+
 import com.google.gwt.user.client.ui.MenuBar;
 import com.google.gwt.user.client.Command;
 import com.google.gwt.user.client.ui.MenuItem;
@@ -82,6 +85,14 @@ public class Menus {
     MenuBar mainMenuBar;
     boolean hideMenu = false;
     MenuBar subcircuitMenuBar[];
+    // per menu (main menu bar, draw menu): category key -> menu, and the items added there
+    // for imported models and categorized subcircuits, so they can be rebuilt
+    Vector<HashMap<String, MenuBar>> categoryMenuBars = new Vector<HashMap<String, MenuBar>>();
+    Vector<Vector<MenuItem>> dynamicMenuItems = new Vector<Vector<MenuItem>>();
+
+    MenuBar getCategoryMenuBar(int num, String key) {
+	return (num < categoryMenuBars.size()) ? categoryMenuBars.get(num).get(key) : null;
+    }
     MenuItem scopeRemovePlotMenuItem;
     MenuItem scopeSelectYMenuItem;
     boolean isMac;
@@ -292,9 +303,13 @@ public class Menus {
 
     // this is called twice, once for the Draw menu, once for the right mouse popup menu
     public void composeMainMenu(MenuBar mainMenuBar, int num) {
+	HashMap<String, MenuBar> categories = new HashMap<String, MenuBar>();
+	categoryMenuBars.add(categories);
+	dynamicMenuItems.add(new Vector<MenuItem>());
 	makeClassCheckItems(mainMenuBar, new String[] { "Add Wire", "WireElm", "Add Routed Wire", "RoutedWireElm", "Add Resistor", "ResistorElm" });
 
     	MenuBar passMenuBar = new MenuBar(true);
+	categories.put("passive", passMenuBar);
 	makeClassCheckItems(passMenuBar, new String[] {
 		"Add Capacitor", "CapacitorElm",
 		"Add Capacitor (polarized)", "PolarCapacitorElm",
@@ -325,6 +340,7 @@ public class Menus {
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Passive Components")), passMenuBar);
 
     	MenuBar inputMenuBar = new MenuBar(true);
+	categories.put("input", inputMenuBar);
 	makeClassCheckItems(inputMenuBar, new String[] {
 		"Add Ground", "GroundElm",
 		"Add Voltage Source (2-terminal)", "DCVoltageElm",
@@ -349,6 +365,7 @@ public class Menus {
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Inputs and Sources")), inputMenuBar);
     	
     	MenuBar outputMenuBar = new MenuBar(true);
+	categories.put("output", outputMenuBar);
 	makeClassCheckItems(outputMenuBar, new String[] {
 		"Add Analog Output", "OutputElm",
 		"Add LED", "LEDElm",
@@ -379,6 +396,7 @@ public class Menus {
 	sim.register("VCCSElm", new VCCSElm(0, 0));
 
     	MenuBar activeMenuBar = new MenuBar(true);
+	categories.put("active", activeMenuBar);
 	makeClassCheckItems(activeMenuBar, new String[] {
 		"Add Diode", "DiodeElm",
 		"Add Zener Diode", "ZenerElm",
@@ -401,9 +419,11 @@ public class Menus {
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Active Components")), activeMenuBar);
 
     	MenuBar activeBlocMenuBar = new MenuBar(true);
+	categories.put("activeBloc", activeBlocMenuBar);
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Active Building Blocks")), activeBlocMenuBar);
     	
     	MenuBar gateMenuBar = new MenuBar(true);
+	categories.put("gates", gateMenuBar);
 	makeClassCheckItems(gateMenuBar, new String[] {
 		"Add Logic Input", "LogicInputElm",
 		"Add Logic Output", "LogicOutputElm",
@@ -419,6 +439,7 @@ public class Menus {
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Logic Gates, Input and Output")), gateMenuBar);
 
     	MenuBar chipMenuBar = new MenuBar(true);
+	categories.put("chips", chipMenuBar);
 	makeClassCheckItems(chipMenuBar, new String[] {
 		"Add D Flip-Flop", "DFlipFlopElm",
 		"Add JK Flip-Flop", "JKFlipFlopElm",
@@ -445,6 +466,7 @@ public class Menus {
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Digital Chips")), chipMenuBar);
     	
     	MenuBar achipMenuBar = new MenuBar(true);
+	categories.put("achips", achipMenuBar);
 	makeClassCheckItems(achipMenuBar, new String[] {
 		"Add 555 Timer", "TimerElm",
 		"Add Phase Comparator", "PhaseCompElm",
@@ -487,6 +509,7 @@ public class Menus {
     	if (subcircuitMenuBar == null)
     	    subcircuitMenuBar = new MenuBar[2];
     	subcircuitMenuBar[num] = new MenuBar(true);
+	categories.put(UserModelLibrary.CAT_SUBCIRCUITS, subcircuitMenuBar[num]);
     	mainMenuBar.addItem(SafeHtmlUtils.fromTrustedString(CheckboxMenuItem.checkBoxHtml+Locale.LS("&nbsp;</div>Subcircuits")), subcircuitMenuBar[num]);
     	
     	MenuBar otherMenuBar = new MenuBar(true);

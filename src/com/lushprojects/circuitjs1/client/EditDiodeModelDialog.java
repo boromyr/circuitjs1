@@ -17,6 +17,7 @@ public class EditDiodeModelDialog extends EditDialog {
 	    return false;
 	if (model.name == null || model.name.length() == 0)
 	    model.pickName();
+	UserModelLibrary.modelEdited(model);
 	if (diodeElm != null)
 	    diodeElm.newModelCreated(model);
 	return true;

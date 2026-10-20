@@ -16,6 +16,7 @@ public class EditMosfetModelDialog extends EditDialog {
 	boolean ok = super.apply();
 	if (model.name == null || model.name.length() == 0)
 	    model.pickName();
+	UserModelLibrary.modelEdited(model);
 	if (mosfetElm != null)
 	    mosfetElm.newModelCreated(model);
 	return ok;

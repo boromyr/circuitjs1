@@ -33,6 +33,7 @@ import com.google.gwt.user.client.ui.Frame;
 import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.MenuBar;
+import com.google.gwt.user.client.ui.MenuItem;
 import com.google.gwt.user.client.ui.PopupPanel;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.RootPanel;
@@ -1426,22 +1427,44 @@ public class UIManager {
     	repaint();
     }
 
+    // rebuild the subcircuit menu entries, each in the Subcircuits menu or the category chosen for it
     void composeSubcircuitMenu() {
 	if (menus.subcircuitMenuBar == null)
 	    return;
 	int mi;
 
 	for (mi = 0; mi != 2; mi++) {
-	    com.google.gwt.user.client.ui.MenuBar menu = menus.subcircuitMenuBar[mi];
-	    menu.clearItems();
+	    // remove what we added last time
+	    Vector<MenuItem> added = menus.dynamicMenuItems.get(mi);
+	    for (MenuItem item : added) {
+		if (item.getParentMenu() != null)
+		    item.getParentMenu().removeItem(item);
+		forgetMainMenuItem(item);
+	    }
+	    added.clear();
+
 	    Vector<CustomCompositeModel> list = CustomCompositeModel.getModelList();
 	    int i;
 	    for (i = 0; i != list.size(); i++) {
 		String name = list.get(i).name;
-		menu.addItem(getClassCheckItem(Locale.LS("Add ") + name, "CustomCompositeElm:" + name));
+		MenuBar menu = menus.getCategoryMenuBar(mi, UserModelLibrary.getCategory(name));
+		if (menu == null)
+		    menu = menus.subcircuitMenuBar[mi];
+		MenuItem item = getClassCheckItem(Locale.LS("Add ") + name, "CustomCompositeElm:" + name);
+		menu.addItem(item);
+		added.add(item);
 	    }
 	}
 	MouseManager.lastSubcircuitMenuUpdate = CustomCompositeModel.sequenceNumber;
+	MouseManager.lastUserModelMenuUpdate = UserModelLibrary.sequenceNumber;
+    }
+
+    void forgetMainMenuItem(MenuItem item) {
+	int i = mainMenuItems.indexOf(item);
+	if (i >= 0) {
+	    mainMenuItems.remove(i);
+	    mainMenuItemNames.remove(i);
+	}
     }
 
     

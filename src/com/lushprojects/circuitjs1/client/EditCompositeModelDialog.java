@@ -121,6 +121,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	
 	TextBox modelNameTextBox = null;
 	Choice scopeChoice = null;
+	Choice categoryChoice = null;
 	Checkbox labelCheck = null;
 	public String defaultName;
 
@@ -270,6 +271,23 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		    scopeChoice.select(SCOPE_THIS_CIRCUIT);
 		scopePanel.add(scopeChoice);
 		vp.add(scopePanel);
+
+		// which menu the subcircuit is listed in
+		HorizontalPanel categoryPanel = new HorizontalPanel();
+		categoryPanel.setVerticalAlignment(com.google.gwt.user.client.ui.HasVerticalAlignment.ALIGN_MIDDLE);
+		categoryPanel.addStyleName("topSpace");
+		Label categoryLabel = new Label(Locale.LS("Menu:"));
+		categoryLabel.getElement().getStyle().setMarginRight(8, com.google.gwt.dom.client.Style.Unit.PX);
+		categoryPanel.add(categoryLabel);
+		categoryChoice = new Choice();
+		String cat = (model.name == null) ? UserModelLibrary.CAT_SUBCIRCUITS : UserModelLibrary.getCategory(model.name);
+		for (int i = 0; i != UserModelLibrary.categoryKeys.length; i++) {
+		    categoryChoice.addItem(UserModelLibrary.getCategoryLabel(i));
+		    if (UserModelLibrary.categoryKeys[i].equals(cat))
+			categoryChoice.select(i);
+		}
+		categoryPanel.add(categoryChoice);
+		vp.add(categoryPanel);
 	
                 canvas.addMouseDownHandler(this);
                 canvas.addMouseUpHandler(this);
@@ -326,6 +344,7 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 		model.setName(CustomCompositeElm.lastModelName = name);
 	    }
 	    int scope = scopeChoice.getSelectedIndex();
+	    UserModelLibrary.setCategory(model.name, UserModelLibrary.categoryKeys[categoryChoice.getSelectedIndex()]);
 	    // remove from old locations first
 	    CustomCompositeModel.localModelMap.remove(model.name);
 	    CustomCompositeModel.globalModelMap.remove(model.name);

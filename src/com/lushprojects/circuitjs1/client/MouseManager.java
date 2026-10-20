@@ -1209,6 +1209,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     }
 
     static int lastSubcircuitMenuUpdate;
+    static int lastUserModelMenuUpdate;
 
     // check/uncheck/enable/disable menu items as appropriate when menu bar clicked on, or when
     // right mouse menu accessed.  also displays shortcuts as a side effect
@@ -1230,7 +1231,8 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	sim.menus.separateAllItem.setEnabled(sim.scopeManager.scopeCount > 0);
 
     	// also update the subcircuit menu if necessary
-    	if (lastSubcircuitMenuUpdate != CustomCompositeModel.sequenceNumber)
+    	if (lastSubcircuitMenuUpdate != CustomCompositeModel.sequenceNumber ||
+    	    lastUserModelMenuUpdate != UserModelLibrary.sequenceNumber)
     	    sim.composeSubcircuitMenu();
     }
 

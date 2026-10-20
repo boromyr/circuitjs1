@@ -219,6 +219,7 @@ public class CirSim implements NativePreviewHandler {
 
 	try {
 	    CustomCompositeModel.loadModelsFromStorage();
+	    UserModelLibrary.loadFromStorage();
 	} catch (Exception e) {
             console("Exception: " + e);
 	}
