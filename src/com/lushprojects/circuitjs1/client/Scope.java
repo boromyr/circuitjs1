@@ -750,15 +750,19 @@ void showPlotValue(int val, boolean b) {
 	scale[plot.units] = gridMax;
     }
     
-    double calcGridStepX() {
-	int multptr=0;
-    	double gsx = 1e-15;
+    // mantissas for the horizontal grid step, finer than 1-2-5 so that each scope speed
+    // gets its own time/div
+    static final double gridStepXMantissa[] = { 1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8 };
 
-    	double ts = sim.maxTimeStep*speed;
-    	while (gsx < ts*20) {
-    	    gsx *=multa[(multptr++)%3];
+    double calcGridStepX() {
+    	// smallest "nice" step that keeps grid lines at least 20 pixels apart
+    	double min = sim.maxTimeStep*speed*20;
+    	double decade = Math.pow(10, Math.floor(Math.log(min)/Math.log(10)));
+    	for (int i = 0; ; i++) {
+    	    double gsx = decade*gridStepXMantissa[i % gridStepXMantissa.length]*(i >= gridStepXMantissa.length ? 10 : 1);
+    	    if (gsx >= min*0.999999)
+    		return gsx;
     	}
-    	return gsx;
     }
 
 

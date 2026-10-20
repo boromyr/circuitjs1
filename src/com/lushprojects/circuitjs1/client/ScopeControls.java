@@ -44,10 +44,15 @@ import com.lushprojects.circuitjs1.client.util.Locale;
 // without opening the scope properties
 public class ScopeControls extends Composite {
 
-    // horizontal slider: position n -> speed 2^n (same range as the properties dialog)
-    static final int H_STEPS = 11;
-    // vertical slider: 1-2-5 sequence of units/div from Scope.MIN_MAN_SCALE (1n) to 1M
-    static final int V_STEPS = 46;
+    // horizontal slider: scope speeds (sim timesteps per pixel), four steps per doubling over
+    // the same 1..1024 range as the properties dialog
+    static final int speeds[] = {
+	1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 112, 128,
+	160, 192, 224, 256, 320, 384, 448, 512, 640, 768, 896, 1024
+    };
+    static final int H_STEPS = speeds.length;
+    // vertical slider: 1-2-5 sequence of units/div from Scope.MIN_MAN_SCALE (1n) to 500
+    static final int V_STEPS = 36;
     static final double seq125[] = { 1, 2, 5 };
     // trigger level slider resolution: steps per division
     static final int TRIG_STEPS_PER_DIV = 10;
@@ -84,7 +89,7 @@ public class ScopeControls extends Composite {
 
 	hValueLabel = new Label();
 	panel.add(makeRow(Locale.LS("Horizontal Scale"), hValueLabel));
-	hBar = new Scrollbar(Scrollbar.HORIZONTAL, 6, 1, 0, H_STEPS, new Command() {
+	hBar = new Scrollbar(Scrollbar.HORIZONTAL, speedToIndex(64), 1, 0, H_STEPS, new Command() {
 	    public void execute() { hBarChanged(); }
 	});
 	panel.add(hBar);
@@ -218,14 +223,19 @@ public class ScopeControls extends Composite {
 	return best;
     }
 
+    // nearest slider position for a speed (it may have been set elsewhere, eg the mouse wheel)
     static int speedToIndex(int speed) {
-	return (int) Math.round(Math.log(speed)/Math.log(2));
+	int best = 0;
+	for (int i = 1; i != H_STEPS; i++)
+	    if (Math.abs(Math.log((double) speeds[i]/speed)) < Math.abs(Math.log((double) speeds[best]/speed)))
+		best = i;
+	return best;
     }
 
     void hBarChanged() {
 	if (updating || scope == null)
 	    return;
-	sim.scopeManager.setScopeSpeed(scope, 1 << hBar.getValue());
+	sim.scopeManager.setScopeSpeed(scope, speeds[hBar.getValue()]);
 	refresh();
 	sim.repaint();
     }
