@@ -644,12 +644,22 @@ void showPlotValue(int val, boolean b) {
     	if (selectedPlot >= 0)
     	    somethingSelected = true;
 
-    	if (somethingSelectedHere || sel) {
+    	if (somethingSelectedHere || sel || app.scopeManager.scopeControlsHighlight(this)) {
     	    g.context.save();
     	    g.context.setGlobalAlpha(0.15);
     	    g.setColor(CircuitElm.selectColor);
     	    g.fillRect(0, 0, rect.width, rect.height);
     	    g.context.restore();
+    	}
+    	if (app.scopeManager.isMarkedActive(this)) {
+    	    // corner mark: this is the scope the side panel scale sliders act on
+    	    g.setColor(CircuitElm.selectColor);
+    	    g.context.beginPath();
+    	    g.context.moveTo(0, 0);
+    	    g.context.lineTo(8, 0);
+    	    g.context.lineTo(0, 8);
+    	    g.context.closePath();
+    	    g.context.fill();
     	}
 	if (getSingleElm() != null)
 	    somethingSelected = false;
@@ -1183,6 +1193,7 @@ void showPlotValue(int val, boolean b) {
     }
     
     void properties() {
+	app.scopeManager.setActiveScope(this);
 	properties = new ScopePropertiesDialog(app, this);
 	CirSim.dialogShowing = properties;
     }

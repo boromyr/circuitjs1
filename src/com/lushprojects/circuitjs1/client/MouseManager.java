@@ -927,6 +927,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	if (ui.isReadOnly() || sim.dialogIsShowing())
 	    return;
     	menuElm = mouseElm;
+    	sim.scopeManager.setActiveScopeFromMouse(mouseElm);
     	sim.scopeManager.menuScope=-1;
     	sim.scopeManager.menuPlot=-1;
     	if (sim.scopeManager.scopeSelected!=-1) {
@@ -1077,6 +1078,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 
     	// set mouseElm in case we are on mobile
     	mouseSelect(e);
+    	sim.scopeManager.setActiveScopeFromMouse(mouseElm);
 
     	mouseDragging=true;
     	didSwitch = false;

@@ -44,6 +44,8 @@ public class ScopeManager {
     public ScopePopupMenu scopePopupMenu;
     public MenuBar selectScopeMenuBar;
     public Vector<MenuItem> selectScopeMenuItems;
+    public Scope activeScope; // scope controlled by the side panel scale sliders
+    public ScopeControls scopeControls;
 
     ScopeManager(CirSim sim) {
 	this.sim = sim;
@@ -344,6 +346,71 @@ public class ScopeManager {
     void resetGraphs() {
 	for (int i = 0; i != scopeCount; i++)
 	    scopes[i].resetGraph(true);
+    }
+
+    boolean isScopeShown(Scope s) {
+	int i;
+	for (i = 0; i != scopeCount; i++)
+	    if (scopes[i] == s)
+		return true;
+	if (sim.scopeElmArr != null)
+	    for (i = 0; i != sim.scopeElmArr.length; i++)
+		if (sim.scopeElmArr[i].elmScope == s)
+		    return true;
+	return false;
+    }
+
+    // get the scope the side panel controls act on, falling back to the first one if
+    // the last one used has gone away
+    Scope getActiveScope() {
+	if (activeScope != null && isScopeShown(activeScope))
+	    return activeScope;
+	activeScope = null;
+	if (scopeCount > 0)
+	    activeScope = scopes[0];
+	else if (sim.scopeElmArr != null && sim.scopeElmArr.length > 0)
+	    activeScope = sim.scopeElmArr[0].elmScope;
+	return activeScope;
+    }
+
+    void setActiveScope(Scope s) {
+	activeScope = s;
+    }
+
+    // make the scope under the mouse (docked or undocked) the active one
+    void setActiveScopeFromMouse(CircuitElm mouseElm) {
+	if (scopeSelected != -1)
+	    activeScope = scopes[scopeSelected];
+	else if (mouseElm instanceof ScopeElm)
+	    activeScope = ((ScopeElm) mouseElm).elmScope;
+    }
+
+    // highlight a scope while the mouse is over the side panel controls acting on it
+    boolean scopeControlsHighlight(Scope s) {
+	return scopeControls != null && scopeControls.highlightScope(s);
+    }
+
+    // mark the active scope when there's more than one, so it's clear which one the controls act on
+    boolean isMarkedActive(Scope s) {
+	if (s != activeScope || scopeControls == null || !scopeControls.isVisible())
+	    return false;
+	return scopeCount + (sim.scopeElmArr == null ? 0 : sim.scopeElmArr.length) > 1;
+    }
+
+    // docked scopes in the same column share their speed (see setupScopes()), so set all of them
+    void setScopeSpeed(Scope s, int sp) {
+	int i;
+	boolean docked = false;
+	for (i = 0; i != scopeCount; i++)
+	    if (scopes[i] == s)
+		docked = true;
+	if (!docked) {
+	    s.setSpeed(sp);
+	    return;
+	}
+	for (i = 0; i != scopeCount; i++)
+	    if (scopes[i].position == s.position && scopes[i].speed != sp)
+		scopes[i].setSpeed(sp);
     }
 
     static int max(int a, int b) { return (a > b) ? a : b; }

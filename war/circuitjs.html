@@ -146,6 +146,42 @@
 	margin-right: 15px;
 }
 
+/* no inline baseline gap below the side panel iframe, so what's under it stays on screen */
+.verticalPanel .gwt-Frame {
+	display: block;
+}
+
+/* scale sliders for the active scope, at the bottom of the side panel */
+.scopeControls {
+	width: 100%;
+	padding-top: 6px;
+	padding-bottom: 4px;
+	border-top: 1px solid #bbb;
+	font-size: 12px;
+}
+.scopeControlsTitle {
+	font-weight: 700;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.scopeControlsRow {
+	margin-top: 4px;
+}
+.scopeControlsValue {
+	font-weight: 700;
+	white-space: nowrap;
+}
+.scopeControlsChannel {
+	margin-right: 6px;
+	font-size: 11px;
+}
+.scopeControlsEdge {
+	font-size: 11px;
+	padding: 1px 6px;
+	white-space: nowrap;
+}
+
 </style>
 
 <link rel="stylesheet" href="font/fontello.css">

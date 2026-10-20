@@ -373,6 +373,9 @@ public class UIManager {
 	iFrame.setHeight("100 px");
 	iFrame.getElement().setAttribute("scrolling", "no");
 
+	// scale sliders for the active scope, at the bottom of the side panel (below the iframe)
+	verticalPanel.add(scopeManager.scopeControls = new ScopeControls(app));
+
 	setGrid();
 	
 	app.mouse = mouse = new MouseManager(app, this);
@@ -596,6 +599,8 @@ public class UIManager {
             stopHighlightElm.setMouseElm(true);
 
         app.scopeManager.setupScopes();
+        if (app.scopeManager.scopeControls != null)
+            app.scopeManager.scopeControls.refresh();
 
         Graphics g = new Graphics(cvcontext);
 
@@ -1489,6 +1494,9 @@ public class UIManager {
     					cumheight+=12;
     		}
     	}
+    	// widgets placed below the iframe (scope controls)
+    	for (i=verticalPanel.getWidgetIndex(iFrame)+1; i < verticalPanel.getWidgetCount(); i++)
+    		cumheight=cumheight+verticalPanel.getWidget(i).getOffsetHeight();
     	int ih=RootLayoutPanel.get().getOffsetHeight()-(hideMenu ? 0 : MENUBARHEIGHT)-cumheight;
     	if (ih<0)
     		ih=0;
