@@ -255,7 +255,15 @@ public class CirSim implements NativePreviewHandler {
 		else if (stopMessage == null && menus.reopenLastCheckItem.getState() &&
 			 (!isElectron() || qp.getValue("restoreLast") != null) && hasLastSession()) {
 		    menus.getSetupList(false);
-		    restoreLastSession();
+		    try {
+			restoreLastSession();
+		    } catch (Exception e) {
+			// a session that can't be loaded must not stop every start: forget it
+			console("can't restore last session: " + e);
+			Storage.getLocalStorageIfSupported().removeItem("lastSession");
+			readCircuit("");
+			menus.getSetupList(true);
+		    }
 		}
 		else
 		    menus.getSetupList(true);
@@ -486,7 +494,12 @@ public class CirSim implements NativePreviewHandler {
 	if (stor == null)
 	    return;
 	String file = (isElectron() && menus.saveFileItem.isEnabled()) ? electronCurrentFile() : null;
-	stor.setItem("lastSession", sessionJSON(dumpCircuit(), file, ui.circuitTitle, unsavedChanges));
+	try {
+	    stor.setItem("lastSession", sessionJSON(dumpCircuit(), file, ui.circuitTitle, unsavedChanges));
+	} catch (Exception e) {
+	    // too big for the browser storage: start without it rather than with an old one
+	    stor.removeItem("lastSession");
+	}
     }
 
     boolean hasLastSession() {

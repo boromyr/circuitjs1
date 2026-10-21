@@ -268,9 +268,6 @@ public class SubcircuitSymbolElm extends CompositeElm {
     boolean canFlipX() { return drawElm.canFlipX(); }
     boolean canFlipY() { return drawElm.canFlipY(); }
 
-    // the subcircuit nodes are normally all connected to each other through its components
-    public boolean getConnection(int n1, int n2) { return true; }
-
     int getDumpType() { return 437; }
     String getXmlDumpType() { return "scs"; }
 

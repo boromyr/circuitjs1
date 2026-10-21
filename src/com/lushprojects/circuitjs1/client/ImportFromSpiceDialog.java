@@ -501,6 +501,9 @@ ListBox pinLists[];
 			subcircuitDisplayName = st.tokenPreserveCase;
 			while (st.hasMoreTokens()) {
 			    String n = st.nextToken();
+			    // parameters (PARAMS: x=1) are not pins, as in analyzeText()
+			    if (n.indexOf('=') >= 0 || n.endsWith(":"))
+				break;
 			    nodes.add(n);
 			    extList.add(new ExtListEntry(n, nodes.size()));
 			}

@@ -30,6 +30,7 @@ import com.google.gwt.user.client.ui.FlexTable;
 import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.ScrollPanel;
+import com.google.gwt.user.client.ui.TextBox;
 import com.google.gwt.user.client.ui.VerticalPanel;
 import com.lushprojects.circuitjs1.client.util.Locale;
 
@@ -259,16 +260,46 @@ public class ModelManagerDialog extends Dialog {
 	return row+1;
     }
 
-    void renameSubcircuit(CustomCompositeModel m) {
-	String newName = Window.prompt(Locale.LS("New name for") + " " + m.name, m.name);
-	if (newName == null)
-	    return;
+    // asks for the new name in a dialog of our own: window.prompt() doesn't exist in Electron
+    void renameSubcircuit(final CustomCompositeModel m) {
+	final TextBox box = new TextBox();
+	box.setText(m.name);
+	box.setWidth("250px");
+	final Dialog dlg = new Dialog() {
+	    boolean apply() { return renameSubcircuit(m, box.getText()); }
+	};
+	dlg.setText(Locale.LS("Rename"));
+	VerticalPanel vp = new VerticalPanel();
+	dlg.setWidget(vp);
+	vp.add(new Label(Locale.LS("New name for") + " " + m.name));
+	vp.add(box);
+	HorizontalPanel hp = new HorizontalPanel();
+	hp.addStyleName("topSpace");
+	vp.add(hp);
+	Button b;
+	hp.add(b = new Button(Locale.LS("OK")));
+	b.addClickHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) { dlg.enterPressed(); }
+	});
+	hp.add(b = new Button(Locale.LS("Cancel")));
+	b.addClickHandler(new ClickHandler() {
+	    public void onClick(ClickEvent event) { dlg.closeDialog(); }
+	});
+	CirSim.dialogShowing = dlg;
+	dlg.center();
+	dlg.show();
+	box.setFocus(true);
+	box.selectAll();
+    }
+
+    // false if the name can't be used (the dialog then stays open)
+    boolean renameSubcircuit(CustomCompositeModel m, String newName) {
 	newName = newName.trim();
 	if (newName.length() == 0 || newName.equals(m.name))
-	    return;
+	    return true;
 	if (CustomCompositeModel.getModelWithName(newName) != null) {
 	    Window.alert(Locale.LS("A model with this name already exists."));
-	    return;
+	    return false;
 	}
 	String oldName = m.name;
 	boolean saved = m.isSaved();
@@ -293,5 +324,6 @@ public class ModelManagerDialog extends Dialog {
 	CirSim.theApp.updateModels();
 	CirSim.theApp.needAnalyze();
 	refresh();
+	return true;
     }
 }
