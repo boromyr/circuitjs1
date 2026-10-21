@@ -208,6 +208,7 @@ public class UIManager {
 	menus.toolbarCheckItem.setState(!hideMenu && !noEditing && !hideSidebar && height > 700);
 	menus.crossHairCheckItem.setState(getOptionFromStorage("crossHair", false));
 	menus.showGridCheckItem.setState(getOptionFromStorage("showGrid", true));
+	menus.gridLinesCheckItem.setState(getOptionFromStorage("gridLines", false));
 	menus.reopenLastCheckItem.setState(getOptionFromStorage("reopenLast", false));
 	menus.euroResistorCheckItem.setState(euroSetting);
 	menus.euroResistorCheckItem.setCommand(
@@ -831,9 +832,10 @@ public class UIManager {
 	g.drawString("exception, see console!", x, canvasHeight-10);
     }
 
-    // a dot at each point of the snap grid, under the circuit, like the schematic editor of
-    // KiCad.  Drawn in screen pixels so the dots stay small and sharp at any zoom; when zoomed
-    // out so far that they would crowd together, only every 2nd, 4th... point gets one.
+    // the snap grid under the circuit, like the schematic editor of KiCad: a dot at each grid
+    // point, or thin lines through them (Options > Grid Lines).  Drawn in screen pixels so it
+    // stays sharp at any zoom; when zoomed out so far that it would crowd together, only every
+    // 2nd, 4th... grid point is used.
     static final double GRID_MIN_SPACING = 8;   // CSS pixels between the dots drawn
 
     void drawGrid(double scale) {
@@ -852,10 +854,29 @@ public class UIManager {
         long i0 = (long) Math.ceil(-app.transform[4]/zoom/unit);
         long j0 = (long) Math.ceil(-app.transform[5]/zoom/unit);
         double x0 = app.transform[4] + i0*unit*zoom, y0 = app.transform[5] + j0*unit*zoom;
+        boolean white = menus.printableCheckItem.getState();
+        cvcontext.setTransform(scale, 0, 0, scale, 0, 0);
+        if (menus.gridLinesCheckItem.getState()) {
+            // one device pixel wide, on pixel centers so they aren't blurred over two pixels
+            cvcontext.setStrokeStyle(white ? "#e0e0e0" : "#262626");
+            cvcontext.setLineWidth(1/scale);
+            cvcontext.beginPath();
+            for (double x = x0; x < w; x += spacing) {
+                double px = (Math.floor(x*scale)+.5)/scale;
+                cvcontext.moveTo(px, 0);
+                cvcontext.lineTo(px, h);
+            }
+            for (double y = y0; y < h; y += spacing) {
+                double py = (Math.floor(y*scale)+.5)/scale;
+                cvcontext.moveTo(0, py);
+                cvcontext.lineTo(w, py);
+            }
+            cvcontext.stroke();
+            return;
+        }
         // dots a bit bigger when zoomed in
         double d = Math.max(1.2, Math.min(2.2, zoom*1.5));
-        cvcontext.setTransform(scale, 0, 0, scale, 0, 0);
-        cvcontext.setFillStyle(menus.printableCheckItem.getState() ? "#a8a8a8" : "#6a6a6a");
+        cvcontext.setFillStyle(white ? "#a8a8a8" : "#6a6a6a");
         cvcontext.beginPath();
         for (double y = y0; y < h; y += spacing)
             for (double x = x0; x < w; x += spacing)

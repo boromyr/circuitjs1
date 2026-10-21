@@ -56,6 +56,7 @@ public class Menus {
     CheckboxMenuItem powerCheckItem;
     CheckboxMenuItem smallGridCheckItem;
     CheckboxMenuItem showGridCheckItem;
+    CheckboxMenuItem gridLinesCheckItem;
     CheckboxMenuItem crossHairCheckItem;
     CheckboxMenuItem showValuesCheckItem;
     CheckboxMenuItem conductanceCheckItem;
@@ -244,6 +245,16 @@ public class Menus {
 	m.addItem(showGridCheckItem = new CheckboxMenuItem(Locale.LS("Show Grid"),
 		new Command() { public void execute(){
 		    sim.setOptionInStorage("showGrid", showGridCheckItem.getState());
+		}
+	}));
+	m.addItem(gridLinesCheckItem = new CheckboxMenuItem(Locale.LS("Grid Lines"),
+		new Command() { public void execute(){
+		    sim.setOptionInStorage("gridLines", gridLinesCheckItem.getState());
+		    // choosing a style also shows the grid
+		    if (!showGridCheckItem.getState()) {
+			showGridCheckItem.setState(true);
+			sim.setOptionInStorage("showGrid", true);
+		    }
 		}
 	}));
 	m.addItem(toolbarCheckItem = new CheckboxMenuItem(Locale.LS("Toolbar"),
