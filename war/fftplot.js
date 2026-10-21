@@ -16,7 +16,7 @@
 
 	var WIN_NAME = 'circuitjs-fft';
 	var STORE = 'fftPlot.';
-	var TRACE_COLORS = ['#27ae60', '#c0392b', '#8e44ad', '#16a085', '#d4a017', '#7f8c8d'];
+	var TRACE_COLORS = ['#2ecc71', '#e74c3c', '#b07cd8', '#1abc9c', '#f1c40f', '#95a5a6'];
 	var SIZES = [1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144];
 	var FMAX = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000];
 
@@ -89,6 +89,7 @@
 			title: 'FFT Spectrum', output: 'Signal', points: 'Points', window: 'Window', scale: 'Scale',
 			freqAxis: 'Frequency (Hz)', fmax: 'Max', log: 'Log', avg: 'Average', harm: 'Harmonics',
 			markers: 'Markers', logV: 'Log V', logVTip: 'Logarithmic voltage axis, so that small components are visible too', fast: 'Fast acquisition',
+			speed: 'Speed', speedTip: 'Simulation Speed (the same as the slider of the simulator)',
 			fastTip: 'While acquiring, run the simulation as fast as the computer allows, then back to the set speed', dbRange: 'dB', custom: 'Custom', auto: 'Auto', none: '(none)',
 			hold: 'Hold trace', holdTip: 'Freeze the current spectrum to compare it with later changes',
 			clear: 'Clear held', clearTip: 'Remove the held traces', csv: 'Copy CSV',
@@ -117,6 +118,7 @@
 			title: 'Spettro FFT', output: 'Segnale', points: 'Punti', window: 'Finestra', scale: 'Scala',
 			freqAxis: 'Frequenza (Hz)', fmax: 'Max', log: 'Log', avg: 'Media', harm: 'Armoniche',
 			markers: 'Marcatori', logV: 'Log V', logVTip: 'Asse delle tensioni logaritmico, per vedere anche le componenti piccole', fast: 'Acquisizione veloce',
+			speed: 'Velocità', speedTip: 'Velocità di simulazione (la stessa della barra del simulatore)',
 			fastTip: 'Durante l\'acquisizione la simulazione va alla massima velocità possibile, poi torna alla velocità impostata', dbRange: 'dB', custom: 'Personalizzato', auto: 'Auto', none: '(nessuno)',
 			hold: 'Fissa curva', holdTip: 'Congela lo spettro attuale per confrontarlo con le modifiche successive',
 			clear: 'Cancella fissate', clearTip: 'Rimuove le curve fissate', csv: 'Copia CSV',
@@ -484,6 +486,7 @@
 		'select:focus,input:focus,button:focus{outline:1px solid var(--accent)}' +
 		'button{cursor:pointer}button:hover{background:#3a3a3a}' +
 		'input[type=number]{width:62px}' +
+		'input[type=range]{width:130px;accent-color:var(--accent);margin:0}' +
 		'input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;margin:0}' +
 		'.sep{width:1px;align-self:stretch;background:var(--border)}' +
 		'#main{flex:1;display:flex;min-height:120px}' +
@@ -534,6 +537,7 @@
 			options([5, 10, 20, 40].map(function (h) { return [h, h]; })) + '</select></label>' +
 		'<label><input type="checkbox" id="cbMark"> ' + S.markers + '</label>' +
 		'<label title="' + S.fastTip + '"><input type="checkbox" id="cbFast"> ' + S.fast + '</label>' +
+		'<label title="' + S.speedTip + '"><span class="lbl">' + S.speed + '</span> <input type="range" id="inSpeed"></label>' +
 		'<span class="sep"></span>' +
 		'<button id="btHold" title="' + S.holdTip + '">' + S.hold + '</button>' +
 		'<button id="btClear" title="' + S.clearTip + '">' + S.clear + '</button>' +
@@ -575,7 +579,7 @@
 			doc: d, cv: $('cv'), wrap: $('wrap'), status: $('status'), meas: $('meas'),
 			selOut: $('selOut'), selN: $('selN'), selWin: $('selWin'), selAvg: $('selAvg'), selScale: $('selScale'),
 			selY: $('selY'), lbY: $('lbY'), lbYc: $('lbYc'), inYmax: $('inYmax'), inYmin: $('inYmin'),
-			cbLog: $('cbLog'), selFmax: $('selFmax'), selH: $('selH'), cbMark: $('cbMark'), cbFast: $('cbFast'), cbLogV: $('cbLogV'), lbLogV: $('lbLogV')
+			cbLog: $('cbLog'), selFmax: $('selFmax'), selH: $('selH'), cbMark: $('cbMark'), cbFast: $('cbFast'), cbLogV: $('cbLogV'), lbLogV: $('lbLogV'), inSpeed: $('inSpeed')
 		};
 		lastOutKey = null;
 		ui.selN.value = settings.size;
@@ -595,6 +599,10 @@
 		ui.cbMark.checked = settings.markers;
 		ui.cbFast.checked = settings.fast;
 		ui.cbLogV.checked = settings.logVolts;
+		try { ui.inSpeed.min = 0; ui.inSpeed.max = sim.getSimSpeedMax(); ui.inSpeed.value = sim.getSimSpeed(); } catch (e) {}
+		ui.inSpeed.oninput = function () { try { sim.setSimSpeed(+ui.inSpeed.value); } catch (e) {} };
+		ui.inSpeed.onpointerdown = function () { ui.speedDrag = true; };
+		ui.inSpeed.onpointerup = ui.inSpeed.onpointercancel = function () { ui.speedDrag = false; };
 		showRangeControls();
 
 		function changed(reacquire) {
@@ -830,6 +838,8 @@
 			return;
 		}
 		if (!ui || !win.document.getElementById('root')) buildUI();
+		// follow the slider of the simulator, unless this one is being moved
+		if (ui.inSpeed && !ui.speedDrag) try { ui.inSpeed.value = sim.getSimSpeed(); } catch (e) {}
 		var now = Date.now();
 		if (now - lastTime < interval) return;
 		lastTime = now;
@@ -1037,7 +1047,7 @@
 
 		var isDb = settings.scale === 'dbv' || settings.scale === 'dbc', isLogV = logV();
 		var traces = held.slice();
-		if (spec) traces.push({ name: S.current, color: '#2f5fd0', s: spec, m: meas, main: true });
+		if (spec) traces.push({ name: S.current, color: '#4f8cff', s: spec, m: meas, main: true });
 		var refOf = function (tr) { return tr.m && tr.m.fund ? tr.m.fund.rms : 1; };
 
 		// frequency range
@@ -1097,7 +1107,7 @@
 		var Y = function (v) { return T + (ymax - v) / (ymax - ymin) * ph; };
 
 		// plot area
-		g.fillStyle = '#ffffff';
+		g.fillStyle = '#141414';
 		g.fillRect(L, T, pw, ph);
 		g.lineWidth = 1;
 		g.font = '12px system-ui,"Segoe UI",sans-serif';
@@ -1109,7 +1119,7 @@
 					var f = m * Math.pow(10, dec);
 					if (f < fmin * 0.999 || f > fmax * 1.001) continue;
 					var x = Math.round(X(f)) + 0.5;
-					g.strokeStyle = m === 1 ? '#c9c9c9' : '#ececec';
+					g.strokeStyle = m === 1 ? '#4a4a4a' : '#2a2a2a';
 					line(g, x, T, x, T + ph);
 					if (m === 1) { g.fillStyle = '#9a9a9a'; g.fillText(fmtAxisFreq(f), x, T + ph + 6); }
 				}
@@ -1118,7 +1128,7 @@
 			var fs = niceLin(fmax, Math.max(2, Math.floor(pw / 90)));
 			for (f = 0; f <= fmax * 1.0001; f += fs) {
 				x = Math.round(X(f)) + 0.5;
-				g.strokeStyle = '#e3e3e3';
+				g.strokeStyle = '#363636';
 				line(g, x, T, x, T + ph);
 				g.fillStyle = '#9a9a9a'; g.fillText(fmtAxisFreq(f), x, T + ph + 6);
 			}
@@ -1135,7 +1145,7 @@
 					var lv = d + Math.log10(mm);
 					if (lv < ymin - 1e-9 || lv > ymax + 1e-9 || (mm > 1 && dpx < 60)) continue;
 					var yl = Math.round(Y(lv)) + 0.5;
-					g.strokeStyle = mm === 1 ? '#d0d0d0' : '#efefef';
+					g.strokeStyle = mm === 1 ? '#4a4a4a' : '#2a2a2a';
 					line(g, L, yl, L + pw, yl);
 					if (mm === 1) { g.fillStyle = '#9a9a9a'; g.fillText(fmtAxisV(Math.pow(10, d)), L - 8, yl); }
 				}
@@ -1145,7 +1155,7 @@
 			if (isDb && ymax - ymin > 100) ystep = ymax - ymin > 200 ? 40 : 20;
 			for (var v = Math.ceil(ymin / ystep) * ystep; v <= ymax + 1e-12; v += ystep) {
 				var y = Math.round(Y(v)) + 0.5;
-				g.strokeStyle = Math.abs(v) < ystep * 1e-6 ? '#c0c0c0' : '#e3e3e3';
+				g.strokeStyle = Math.abs(v) < ystep * 1e-6 ? '#5c5c5c' : '#363636';
 				line(g, L, y, L + pw, y);
 				g.fillStyle = '#9a9a9a';
 				g.fillText(isDb ? String(Math.round(v * 10) / 10) : fmtAxisV(Math.abs(v) < ystep * 1e-6 ? 0 : v), L - 8, y);
@@ -1156,7 +1166,7 @@
 		g.textAlign = 'center'; g.fillStyle = '#9a9a9a';
 		g.fillText(S.axis[settings.scale], 0, 0);
 		g.restore();
-		g.strokeStyle = '#8a8a8a';
+		g.strokeStyle = '#5c5c5c';
 		g.strokeRect(L + 0.5, T + 0.5, pw - 1, ph - 1);
 
 		// traces: the peak of the bins in each pixel column, so tones never get lost
@@ -1202,12 +1212,12 @@
 				g.font = '11px system-ui,"Segoe UI",sans-serif'; g.textAlign = 'center'; g.textBaseline = 'bottom';
 				g.fillText(label, mx, my - 12);
 			};
-			mark(meas.fund.f, meas.fund.rms, 'F', '#d35400');
-			meas.harmonics.forEach(function (hm) { mark(hm.f, hm.rms, String(hm.h), '#8e44ad'); });
+			mark(meas.fund.f, meas.fund.rms, 'F', '#ff8c3a');
+			meas.harmonics.forEach(function (hm) { mark(hm.f, hm.rms, String(hm.h), '#c08ae8'); });
 		}
 
 		if (!spec && !held.length) {
-			g.fillStyle = '#777'; g.textAlign = 'center'; g.textBaseline = 'middle';
+			g.fillStyle = '#9a9a9a'; g.textAlign = 'center'; g.textBaseline = 'middle';
 			g.font = '14px system-ui,"Segoe UI",sans-serif';
 			var noOut = !targets || !targets.outputs.length;
 			g.fillText(noOut ? S.needOut : (running ? fmt(S.acquiring, Math.floor(progress * 100)) : S.paused), L + pw / 2, T + ph / 2);
@@ -1220,7 +1230,7 @@
 			var ly = T + 14, lx = L + 12;
 			traces.forEach(function (tr) {
 				g.fillStyle = tr.color; g.fillRect(lx, ly - 1.5, 16, 3);
-				g.fillStyle = '#333'; g.fillText(tr.main ? S.current : tr.name, lx + 22, ly);
+				g.fillStyle = '#e0e0e0'; g.fillText(tr.main ? S.current : tr.name, lx + 22, ly);
 				ly += 17;
 			});
 		}
@@ -1230,7 +1240,7 @@
 		// curve at the cursor's frequency, so the readout follows the mouse instead of jumping
 		if (hover && traces.length && hover.x >= L && hover.x <= L + pw && hover.y >= T && hover.y <= T + ph) {
 			var hx = Math.round(hover.x) + 0.5;
-			g.strokeStyle = 'rgba(0,0,0,0.35)'; g.setLineDash([3, 3]);
+			g.strokeStyle = 'rgba(255,255,255,0.4)'; g.setLineDash([3, 3]);
 			line(g, hx, T, hx, T + ph); g.setLineDash([]);
 			var fa = Math.max(0, Finv(hover.x - 3)), fb = Finv(hover.x + 3), fh = Finv(hover.x);
 			var rows = [];
@@ -1352,5 +1362,5 @@
 	};
 	if (window.CircuitJS1) init(window.CircuitJS1);
 
-	window.CircuitJSFFT = { open: open, _test: { fft: fft, analyze: analyze, measure: measure, settings: settings, plan: plan, plotPoints: plotPoints, decimate: decimate, dft: dft, firFilter: firFilter, wholePeriods: wholePeriods, isWhole: isWhole, resample: resample, blockStats: blockStats, PASSBAND: PASSBAND } };
+	window.CircuitJSFFT = { open: open, _test: { last: function () { return { spec: spec, meas: meas }; }, fft: fft, analyze: analyze, measure: measure, settings: settings, plan: plan, plotPoints: plotPoints, decimate: decimate, dft: dft, firFilter: firFilter, wholePeriods: wholePeriods, isWhole: isWhole, resample: resample, blockStats: blockStats, PASSBAND: PASSBAND } };
 })();

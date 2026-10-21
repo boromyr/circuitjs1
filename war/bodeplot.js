@@ -16,7 +16,7 @@
 	var WIN_NAME = 'circuitjs-bode';
 	var STORE = 'bodePlot.';
 	var NPOINTS = 400;
-	var TRACE_COLORS = ['#27ae60', '#c0392b', '#8e44ad', '#16a085', '#d4a017', '#7f8c8d'];
+	var TRACE_COLORS = ['#2ecc71', '#e74c3c', '#b07cd8', '#1abc9c', '#f1c40f', '#95a5a6'];
 
 	var sim = null;
 	var win = null;
@@ -52,6 +52,7 @@
 			custom: 'Custom', yMaxTip: 'Top of the dB scale', yMinTip: 'Bottom of the dB scale',
 			title: 'Bode Plot', mag: 'Magnitude', phase: 'Phase', input: 'Input', output: 'Output',
 			freq: 'Freq.', hold: 'Hold trace', holdTip: 'Freeze the current trace to compare it with later changes',
+			speed: 'Speed', speedTip: 'Simulation Speed (the same as the slider of the simulator)',
 			clear: 'Clear held', clearTip: 'Remove the held traces', csv: 'Copy CSV',
 			csvTip: 'Copy the data (frequency, dB, phase) to the clipboard', none: '(none)',
 			freqAxis: 'Frequency (Hz)', magAxis: 'Magnitude (dB)', phaseAxis: 'Phase (°)',
@@ -73,6 +74,7 @@
 			custom: 'Personalizzato', yMaxTip: 'Valore massimo della scala in dB', yMinTip: 'Valore minimo della scala in dB',
 			title: 'Diagramma di Bode', mag: 'Modulo', phase: 'Fase', input: 'Ingresso', output: 'Uscita',
 			freq: 'Freq.', hold: 'Fissa curva', holdTip: 'Congela la curva attuale per confrontarla con le modifiche successive',
+			speed: 'Velocità', speedTip: 'Velocità di simulazione (la stessa della barra del simulatore)',
 			clear: 'Cancella fissate', clearTip: 'Rimuove le curve fissate', csv: 'Copia CSV',
 			csvTip: 'Copia i dati (frequenza, dB, fase) negli appunti', none: '(nessuno)',
 			freqAxis: 'Frequenza (Hz)', magAxis: 'Modulo (dB)', phaseAxis: 'Fase (°)',
@@ -178,6 +180,7 @@
 		'select:focus,input:focus,button:focus{outline:1px solid var(--accent)}' +
 		'button{cursor:pointer}button:hover{background:#3a3a3a}' +
 		'input[type=number]{width:62px}' +
+		'input[type=range]{width:130px;accent-color:var(--accent);margin:0}' +
 		'input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;margin:0}' +
 		'.sep{width:1px;align-self:stretch;background:var(--border)}' +
 		'#wrap{flex:1;position:relative;min-height:120px}' +
@@ -204,6 +207,7 @@
 		'<label id="lbYc"><input type="number" id="inYmax" step="1" title="' + S.yMaxTip + '"> … ' +
 		'<input type="number" id="inYmin" step="1" title="' + S.yMinTip + '"></label>' +
 		'<label><span class="lbl">Offset</span> <input type="number" id="inOff" step="0.5"> dB</label>' +
+		'<label title="' + S.speedTip + '"><span class="lbl">' + S.speed + '</span> <input type="range" id="inSpeed"></label>' +
 		'<span class="sep"></span>' +
 		'<button id="btHold" title="' + S.holdTip + '">' + S.hold + '</button>' +
 		'<button id="btClear" title="' + S.clearTip + '">' + S.clear + '</button>' +
@@ -247,7 +251,7 @@
 			doc: d, cv: $('cv'), wrap: $('wrap'), status: $('status'),
 			cbMag: $('cbMag'), cbPhase: $('cbPhase'), selSrc: $('selSrc'), selOut: $('selOut'),
 			selFmin: $('selFmin'), selFmax: $('selFmax'), selY: $('selY'), inOff: $('inOff'),
-			lbYc: $('lbYc'), inYmax: $('inYmax'), inYmin: $('inYmin')
+			lbYc: $('lbYc'), inYmax: $('inYmax'), inYmin: $('inYmin'), inSpeed: $('inSpeed')
 		};
 		lastSrcKey = lastOutKey = null;
 		FREQS_MIN.forEach(function (f) { addOpt(ui.selFmin, f, fmtFreq(f)); });
@@ -260,6 +264,11 @@
 		ui.selY.value = settings.yRange;
 		if (ui.selY.value === '') ui.selY.value = settings.yRange = 'auto';
 		ui.inOff.value = settings.offset;
+		// the Simulation Speed slider of the simulator, followed in tick() unless dragged here
+		try { ui.inSpeed.min = 0; ui.inSpeed.max = sim.getSimSpeedMax(); ui.inSpeed.value = sim.getSimSpeed(); } catch (e) {}
+		ui.inSpeed.oninput = function () { try { sim.setSimSpeed(+ui.inSpeed.value); } catch (e) {} };
+		ui.inSpeed.onpointerdown = function () { ui.speedDrag = true; };
+		ui.inSpeed.onpointerup = ui.inSpeed.onpointercancel = function () { ui.speedDrag = false; };
 		ui.inYmax.value = settings.yMax;
 		ui.inYmin.value = settings.yMin;
 		ui.lbYc.style.display = settings.yRange === 'custom' ? '' : 'none';
@@ -387,6 +396,7 @@
 			return;
 		}
 		if (!ui || !win.document.getElementById('root')) buildUI();
+		if (ui.inSpeed && !ui.speedDrag) try { ui.inSpeed.value = sim.getSimSpeed(); } catch (e) {}
 		var now = Date.now();
 		if (now - lastSweepTime < interval) return;
 		lastSweepTime = now;
@@ -469,7 +479,7 @@
 
 		var off = settings.offset;
 		var traces = held.slice();
-		if (result) traces.push({ name: S.current, color: '#2f5fd0', r: result, main: true });
+		if (result) traces.push({ name: S.current, color: '#4f8cff', r: result, main: true });
 
 		// magnitude range
 		var ymax, ymin;
@@ -506,7 +516,7 @@
 		var YP = function (deg) { return T + (pc + 180 - deg) / 360 * ph; };
 
 		// plot area
-		g.fillStyle = '#ffffff';
+		g.fillStyle = '#141414';
 		g.fillRect(L, T, pw, ph);
 		g.lineWidth = 1;
 		// frequency grid
@@ -517,7 +527,7 @@
 				var f = m * Math.pow(10, dec);
 				if (f < settings.fmin * 0.999 || f > settings.fmax * 1.001) continue;
 				var x = Math.round(X(f)) + 0.5;
-				g.strokeStyle = m === 1 ? '#c9c9c9' : '#ececec';
+				g.strokeStyle = m === 1 ? '#4a4a4a' : '#2a2a2a';
 				line(g, x, T, x, T + ph);
 				if (m === 1) { g.fillStyle = '#9a9a9a'; g.fillText(fmtAxisFreq(f), x, T + ph + 6); }
 			}
@@ -530,7 +540,7 @@
 			g.textAlign = 'right'; g.textBaseline = 'middle';
 			for (var v = Math.ceil(ymin / ystep) * ystep; v <= ymax + 1e-9; v += ystep) {
 				var y = Math.round(Y(v)) + 0.5;
-				g.strokeStyle = v === 0 ? '#c0c0c0' : '#e3e3e3';
+				g.strokeStyle = v === 0 ? '#5c5c5c' : '#363636';
 				line(g, L, y, L + pw, y);
 				g.fillStyle = '#9a9a9a';
 				g.fillText(String(Math.round(v * 10) / 10), L - 8, y);
@@ -546,7 +556,7 @@
 			g.textAlign = 'left'; g.textBaseline = 'middle';
 			for (var d = pc - 180; d <= pc + 180; d += 45) {
 				var yp = Math.round(YP(d)) + 0.5;
-				if (!showMag) { g.strokeStyle = d === 0 ? '#c0c0c0' : '#e3e3e3'; line(g, L, yp, L + pw, yp); }
+				if (!showMag) { g.strokeStyle = d === 0 ? '#5c5c5c' : '#363636'; line(g, L, yp, L + pw, yp); }
 				g.fillStyle = '#e67e22';
 				g.fillText(d + '°', L + pw + 8, yp);
 			}
@@ -556,7 +566,7 @@
 			g.fillText(S.phaseAxis, 0, 0);
 			g.restore();
 		}
-		g.strokeStyle = '#8a8a8a';
+		g.strokeStyle = '#5c5c5c';
 		g.strokeRect(L + 0.5, T + 0.5, pw - 1, ph - 1);
 
 		// traces
@@ -569,7 +579,7 @@
 		g.restore();
 
 		if (!result) {
-			g.fillStyle = '#777'; g.textAlign = 'center'; g.textBaseline = 'middle';
+			g.fillStyle = '#9a9a9a'; g.textAlign = 'center'; g.textBaseline = 'middle';
 			g.font = '14px system-ui,"Segoe UI",sans-serif';
 			var noIO = !targets || !targets.sources.length || !targets.outputs.length;
 			g.fillText(noIO ? S.needIO : (S[error] || S.singular), L + pw / 2, T + ph / 2);
@@ -582,7 +592,7 @@
 			var ly = T + 14, lx = L + 12;
 			traces.forEach(function (tr) {
 				g.fillStyle = tr.color; g.fillRect(lx, ly - 1.5, 16, 3);
-				g.fillStyle = '#333'; g.fillText(tr.main ? S.current : tr.name, lx + 22, ly);
+				g.fillStyle = '#e0e0e0'; g.fillText(tr.main ? S.current : tr.name, lx + 22, ly);
 				ly += 17;
 			});
 		}
@@ -591,7 +601,7 @@
 		if (hover && result && hover.x >= L && hover.x <= L + pw && hover.y >= T && hover.y <= T + ph) {
 			var fh = Math.pow(10, lf0 + (hover.x - L) / pw * (lf1 - lf0));
 			var hx = Math.round(hover.x) + 0.5;
-			g.strokeStyle = 'rgba(0,0,0,0.35)'; g.setLineDash([3, 3]);
+			g.strokeStyle = 'rgba(255,255,255,0.4)'; g.setLineDash([3, 3]);
 			line(g, hx, T, hx, T + ph); g.setLineDash([]);
 			var rows = ['f = ' + fmtFreq(fh)];
 			traces.slice().reverse().forEach(function (tr) {

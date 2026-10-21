@@ -56,6 +56,10 @@ public class JSInterface {
     void fftStop() { app.sim.fftCapture.stop(); }
     JavaScriptObject fftStatus() { return app.sim.fftCapture.status(); }
     void fftSetFast(boolean f) { app.sim.fftCapture.fast = f; }
+    // the Simulation Speed slider of the side panel (also shown in the FFT window)
+    int getSimSpeed() { return app.ui.speedBar.getValue(); }
+    int getSimSpeedMax() { return app.ui.speedBar.max; }
+    void setSimSpeed(int v) { app.ui.speedBar.setValue(v); }
     void setMaxTimeStep(double ts) { app.sim.maxTimeStep = app.sim.timeStep = ts; }
 
     native void setupJSInterface() /*-{
@@ -83,7 +87,10 @@ public class JSInterface {
 	    fftClear: $entry(function() { that.@com.lushprojects.circuitjs1.client.JSInterface::fftClear()(); }),
 	    fftStop: $entry(function() { that.@com.lushprojects.circuitjs1.client.JSInterface::fftStop()(); }),
 	    fftStatus: $entry(function() { return that.@com.lushprojects.circuitjs1.client.JSInterface::fftStatus()(); }),
-	    fftSetFast: $entry(function(f) { that.@com.lushprojects.circuitjs1.client.JSInterface::fftSetFast(Z)(!!f); })
+	    fftSetFast: $entry(function(f) { that.@com.lushprojects.circuitjs1.client.JSInterface::fftSetFast(Z)(!!f); }),
+	    getSimSpeed: $entry(function() { return that.@com.lushprojects.circuitjs1.client.JSInterface::getSimSpeed()(); }),
+	    getSimSpeedMax: $entry(function() { return that.@com.lushprojects.circuitjs1.client.JSInterface::getSimSpeedMax()(); }),
+	    setSimSpeed: $entry(function(v) { that.@com.lushprojects.circuitjs1.client.JSInterface::setSimSpeed(I)(v); })
 	};
 	var hook = $wnd.oncircuitjsloaded;
 	if (hook)
