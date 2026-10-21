@@ -1303,13 +1303,13 @@ public abstract class CircuitElm implements Editable {
     // unconnected nodes, and look for loops
     boolean getConnection(int n1, int n2) { return true; }
 
-    // are n1 and n2 in the same matrix?  by default same as getConnection(), but
-    // can be overridden for elements like MOSFETs where the gate affects drain/source
-    // but isn't electrically connected.  n1 and n2 may be internal nodes.
     // AC (small-signal) analysis for the Bode plot: elements with timestep-dependent
     // companion models (capacitors, inductors, junction caps) replace them with their
     // real admittance here.  See ACAnalysis.
     void stampAC(ACAnalysis ac) { }
+    // are n1 and n2 in the same matrix?  by default same as getConnection(), but
+    // can be overridden for elements like MOSFETs where the gate affects drain/source
+    // but isn't electrically connected.  n1 and n2 may be internal nodes.
     boolean getMatrixConnection(int n1, int n2) { return getConnection(n1, n2); }
     
     // is n1 connected to ground somehow?

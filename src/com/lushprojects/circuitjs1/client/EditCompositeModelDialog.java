@@ -140,6 +140,22 @@ public class EditCompositeModelDialog extends Dialog implements MouseDownHandler
 	    });
 	    int i;
 	    int postCount = model.extList.size();
+	    // pins that share a side and position (an import puts them all at the top of the
+	    // west side) are spread out down their side, so they don't overlap
+	    HashSet<Integer> places = new HashSet<Integer>();
+	    boolean overlap = false;
+	    for (i = 0; i != postCount; i++) {
+		ExtListEntry pin = model.extList.get(i);
+		if (!places.add(pin.side*10000 + pin.pos))
+		    overlap = true;
+	    }
+	    if (overlap) {
+		int sidePos[] = new int[4];
+		for (i = 0; i != postCount; i++) {
+		    ExtListEntry pin = model.extList.get(i);
+		    pin.pos = sidePos[pin.side]++;
+		}
+	    }
 	    int sideCounts[] = new int[] { 0, 0, 0, 0 };
 	    for (i = 0; i != postCount; i++) {
 		ExtListEntry pin = model.extList.get(i);

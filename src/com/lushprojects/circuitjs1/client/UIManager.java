@@ -1163,7 +1163,8 @@ public class UIManager {
     	// space bar: run / stop the simulation, unless it was assigned to something else.  Handled
     	// on keydown and cancelled there, so a focused button (like RUN/Stop itself) doesn't
     	// get clicked by it as well.
-    	if ((t & Event.ONKEYDOWN) != 0 && code == KEY_SPACE && !isTextFieldFocused() &&
+    	// (not while a dialog is open: there the space bar presses its focused button)
+    	if ((t & Event.ONKEYDOWN) != 0 && code == KEY_SPACE && !isTextFieldFocused() && !dialogIsShowing() &&
     		!e.getNativeEvent().getCtrlKey() && !e.getNativeEvent().getAltKey() &&
     		!e.getNativeEvent().getMetaKey() && !spaceIsAssigned()) {
     	    if (!isRepeatEvent(e.getNativeEvent()))

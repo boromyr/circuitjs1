@@ -76,7 +76,7 @@
 		averages: 1,
 		harmonics: 10,
 		markers: true,
-		fast: true,
+		fast: false,
 		logVolts: false
 	};
 
@@ -161,6 +161,9 @@
 		if (s) for (var k in settings) if (s.hasOwnProperty(k)) settings[k] = s[k];
 		if (settings.size !== 'auto' && SIZES.indexOf(settings.size) < 0) settings.size = 'auto';
 		if (!WINDOWS[settings.window]) settings.window = 'bh';
+		// fast acquisition overrides the simulation speed, so it is never turned on by itself:
+		// each session starts with it off
+		settings.fast = false;
 	})();
 	function saveSettings() { save('settings', settings); }
 
@@ -883,7 +886,7 @@
 			var full = span >= need - dt * 1e-6;
 			progress = full ? 1 : Math.max(0, Math.min(0.999, span / need));
 			// the simulation runs flat out until the samples are all there
-			sim.fftSetFast(settings.fast && running && !full);
+			sim.fftSetFast(settings.fast && running && !full, need);
 			if (tLast !== null && tLast === lastSampleT && spec) { draw(); return; }   // nothing new (paused)
 			var t0 = Date.now(), x = null, preview = false, smp;
 			if (full) {

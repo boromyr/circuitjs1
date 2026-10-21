@@ -198,7 +198,7 @@ class DiodeElm extends CircuitElm {
 	    double vd = volts[0]-volts[diodeEndNode];
 	    double cj = Diode.calcJunctionCap(vd, model.junctionCap, model.junctionPot, model.junctionExp);
 	    if (model.transitTime > 0) {
-		double gd = model.saturationCurrent * model.vdcoef * Math.exp(vd * model.vdcoef);
+		double gd = model.saturationCurrent * model.vdcoef * Math.exp(Math.min(vd * model.vdcoef, 80));
 		cj += model.transitTime * gd;
 	    }
 	    int idx = (arr[4] != null) ? 5 : 4;

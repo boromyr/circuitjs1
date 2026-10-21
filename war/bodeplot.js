@@ -29,6 +29,10 @@
 	var held = [];          // frozen traces for comparison
 	var hover = null;       // {x, y}
 	var interval = 400, lastSweepTime = 0;
+	// what the last sweep was made for: the circuit is only swept again when this changes,
+	// since finding the operating point runs every element and can disturb ones with memory
+	// (Schmitt triggers, gate delays) besides costing time
+	var lastSweepKey = null, lastVersion = null;
 
 	var settings = {
 		showMag: true,
@@ -413,6 +417,15 @@
 				saveSettings();
 			}
 			var prevResult = result;
+			var sweepKey = srcKey + '|' + outKey + '|' + settings.fmin + '|' + settings.fmax;
+			var version = sim.getCircuitVersion ? sim.getCircuitVersion() : null;
+			// without a DC solution the sweep follows the transient state, so it keeps updating
+			if (prevResult && version !== null && sweepKey === lastSweepKey && version === lastVersion &&
+					prevResult.op !== 'transient') {
+				draw();
+				return;
+			}
+			lastSweepKey = sweepKey; lastVersion = version;
 			result = null; error = null;
 			if (srcKey && outKey) {
 				var t0 = Date.now();

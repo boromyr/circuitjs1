@@ -757,6 +757,8 @@ void showPlotValue(int val, boolean b) {
     double calcGridStepX() {
     	// smallest "nice" step that keeps grid lines at least 20 pixels apart
     	double min = sim.maxTimeStep*speed*20;
+    	if (!(min > 0) || Double.isInfinite(min))
+    	    return 1;
     	double decade = Math.pow(10, Math.floor(Math.log(min)/Math.log(10)));
     	for (int i = 0; ; i++) {
     	    double gsx = decade*gridStepXMantissa[i % gridStepXMantissa.length]*(i >= gridStepXMantissa.length ? 10 : 1);

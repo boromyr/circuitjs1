@@ -588,6 +588,12 @@ ListBox pinLists[];
 			continue;
 		    }
 
+		    // other dot commands (.end, .param, .options...) don't define anything we use
+		    if (first.startsWith(".")) {
+			output("skipping " + first);
+			continue;
+		    }
+
 		    elements.add(first);
 		    int nodeCount = 0;
 		    char c = first.charAt(0);

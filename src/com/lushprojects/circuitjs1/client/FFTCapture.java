@@ -34,8 +34,10 @@ class FFTCapture {
     double tbuf[] = new double[0], vbuf[] = new double[0];
     int pos, count;
     double lastT;
-    // run the simulation as fast as the frame time allows, while the FFT window acquires
+    // run the simulation as fast as the frame time allows, while the FFT window acquires,
+    // until fastSpan seconds of simulated time are recorded
     boolean fast;
+    double fastSpan;
 
     FFTCapture(SimulationManager s) { sim = s; }
 
@@ -68,6 +70,25 @@ class FFTCapture {
     }
 
     void clear() { pos = count = 0; }
+
+    void setFast(boolean f, double span) {
+	fast = f;
+	fastSpan = span;
+    }
+
+    // simulated time covered by the recorded samples
+    double recordedSpan() {
+	if (count < 2)
+	    return 0;
+	int len = vbuf.length;
+	return tbuf[(pos-1+len) % len] - tbuf[(pos-count+len) % len];
+    }
+
+    // checked by the simulation loop every frame: fast mode ends by itself as soon as enough
+    // is recorded, instead of when the FFT window next looks (which can be seconds later)
+    boolean isFast() {
+	return fast && elm != null && recordedSpan() < fastSpan;
+    }
 
     // called after every time step
     void timeStep() {

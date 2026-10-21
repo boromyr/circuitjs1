@@ -785,11 +785,21 @@ expandingLabel xyPlotsLabel;
 	}
 	
 	
+	// slider position for the scope's speed (the side panel slider also sets speeds between
+	// the powers of two, which this slider only shows rounded)
+	int speedBarPosition() {
+	    return 10-(int)Math.round(Math.log(scope.speed)/Math.log(2));
+	}
+
 	void scrollbarChanged() {
+	    // updateUi() moving the slider to the rounded position must not change the speed
+	    if (speedBar.getValue() == speedBarPosition()) {
+		setScopeSpeedLabel();
+		return;
+	    }
 	    int newsp = (int)Math.pow(2,  10-speedBar.getValue());
-	    CirSim.console("changed " + scope.speed + " " + newsp + " " + speedBar.getValue());
 	    if (scope.speed != newsp)
-		scope.setSpeed(newsp);
+		CirSim.theApp.scopeManager.setScopeSpeed(scope, newsp);
 	    setScopeSpeedLabel();
 	}
 	
@@ -797,7 +807,7 @@ expandingLabel xyPlotsLabel;
 	    vModep.setVisible(vScaleLabel.expanded);
 	    gridLabels.updateRowVisibility();
 	    hScaleGrid.getRowFormatter().setVisible(1, hScaleLabel.expanded);
-	    speedBar.setValue(10-(int)Math.round(Math.log(scope.speed)/Math.log(2)));
+	    speedBar.setValue(speedBarPosition());
 	    if (voltageBox != null) {
 		voltageBox.setValue(scope.showV && scope.hasPlotValue(Scope.VAL_VOLTAGE));
 		currentBox.setValue(scope.showI && scope.hasPlotValue(Scope.VAL_CURRENT));

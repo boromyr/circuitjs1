@@ -109,7 +109,8 @@ class Diode {
 	    double cj = calcJunctionCap(voltdiff, model.junctionCap, model.junctionPot, model.junctionExp);
 	    // add diffusion capacitance from transit time: Cd = TT * gd
 	    if (model.transitTime > 0) {
-		double gd = leakage * vdcoef * Math.exp(voltdiff * vdcoef);
+		// (exponent limited so a large voltage during convergence can't overflow it)
+		double gd = leakage * vdcoef * Math.exp(Math.min(voltdiff * vdcoef, 80));
 		cj += model.transitTime * gd;
 	    }
 	    geqCap = 2 * cj / sim.timeStep;

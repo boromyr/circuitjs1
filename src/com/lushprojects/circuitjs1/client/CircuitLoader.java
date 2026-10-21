@@ -61,6 +61,8 @@ public class CircuitLoader {
         CircuitElm.voltageRange = 5;
         scopes.clearScopes();
         sim.lastIterTime = 0;
+        // a new circuit runs at its own speed until the FFT window (if open) asks again
+        sim.fftCapture.fast = false;
         if (app.contextStack.isEmpty())
             CustomCompositeModel.clearLocalModels();
         if (!app.ui.subcircuitStack.isEmpty()) {

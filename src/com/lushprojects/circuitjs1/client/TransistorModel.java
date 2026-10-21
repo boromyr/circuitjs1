@@ -90,7 +90,9 @@ public class TransistorModel implements Editable, Comparable<TransistorModel> {
 	TransistorModel lm = modelMap.get(name);
 	if (lm != null)
 	    return lm;
-	lm = new TransistorModel(name, 1e-13);
+	// (the constructor's first argument is the description, not the name)
+	lm = new TransistorModel(null, 1e-13);
+	lm.name = name;
 	modelMap.put(name, lm);
 	return lm;
     }

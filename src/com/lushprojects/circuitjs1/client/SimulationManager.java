@@ -37,6 +37,9 @@ public class SimulationManager {
     HashMap<CircuitElm, ArrayList<RoutedWireConnection>> routedWireMap;
     CircuitElm elmArr[];
     ACAnalysis acAnalysis = new ACAnalysis(this);
+    // changes whenever the circuit is analyzed or stamped again (an edit, a new circuit, a
+    // slider, a time step change), so the Bode window knows when its sweep is out of date
+    int circuitVersion;
     FFTCapture fftCapture = new FFTCapture(this);
     double t;
 
@@ -817,6 +820,7 @@ public class SimulationManager {
     // analyze the circuit when something changes, so it can be simulated.
     // Most of this has been moved to preStampCircuit() so it can be avoided if the simulation is stopped.
     void analyzeCircuit() {
+	circuitVersion++;
 	app.setStopElm(null, null);
 	elmList = app.elmList;
 	if (elmList.isEmpty()) {
@@ -962,6 +966,7 @@ public class SimulationManager {
     // this gets called after something changes in the circuit, and also when auto-adjusting timestep
     void stampCircuit() {
 	int i;
+	circuitVersion++;
 
 	// initialize per-matrix arrays
 	for (i = 0; i != matrices.length; i++) {
@@ -1292,7 +1297,7 @@ public class SimulationManager {
 	app.dumpMatrix = false;
 	long steprate = (long) (160*app.getIterCount());
 	// while the FFT window acquires, as many steps as fit in the frame time limit below
-	if (fftCapture.fast && fftCapture.elm != null)
+	if (fftCapture.isFast())
 	    steprate = 1000000000L;
 	long tm = System.currentTimeMillis();
 	long lit = lastIterTime;

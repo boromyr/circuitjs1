@@ -1312,6 +1312,9 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     static native double wheelDeltaY(NativeEvent e) /*-{
 	if (e.wheelDelta)
 	    return -e.wheelDelta / 40;
+	// Firefox: GWT listens to DOMMouseScroll there, which has the lines in detail
+	if (e.type == "DOMMouseScroll")
+	    return e.detail || 0;
 	if (!e.deltaY)
 	    return 0;
 	if (e.deltaMode == 1)		// lines
