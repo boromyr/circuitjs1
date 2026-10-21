@@ -325,11 +325,11 @@ function createWindow () {
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ frameName }) => {
-	// Bode plot window (war/bodeplot.js): a blank, same-origin child window
-	// that the simulator page fills and redraws itself
+	// Bode plot window (war/bodeplot.js): a blank, same-origin window that the simulator
+	// page fills and redraws itself.  Not a child of the simulator window, so activating the
+	// simulator brings it in front (the speed slider is in the plot windows too)
 	if (frameName === 'circuitjs-bode') {
 	  return { action: 'allow', overrideBrowserWindowOptions: {
-	    parent: mainWindow,
 	    title: 'Bode Plot',
 	    minWidth: 480,
 	    minHeight: 320,
@@ -340,7 +340,6 @@ function createWindow () {
 	// FFT window (war/fftplot.js), made the same way
 	if (frameName === 'circuitjs-fft') {
 	  return { action: 'allow', overrideBrowserWindowOptions: {
-	    parent: mainWindow,
 	    title: 'FFT',
 	    minWidth: 560,
 	    minHeight: 360,
