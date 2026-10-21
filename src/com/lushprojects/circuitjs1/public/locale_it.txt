@@ -1210,6 +1210,7 @@
 "Edit Shortcuts"="Modifica scorciatoie"
 "Edit Subcircuit Pin Layout"="Modifica disposizione pin sottocircuito"
 "Edit Values With Mouse Wheel"="Modifica valori con rotellina mouse"
+"Reopen Last Circuit at Startup"="Riapri l'ultimo circuito all'avvio"
 "Editing disabled.  Re-enable from the Options menu."="Modifica disabilitata. Riattivala dal menu Opzioni."
 "Editing: "="Modifica: "
 "Exception in stampCircuit"="Eccezione in stampCircuit"

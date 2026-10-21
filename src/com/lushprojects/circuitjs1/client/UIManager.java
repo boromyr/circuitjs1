@@ -207,6 +207,7 @@ public class UIManager {
 	menus.showValuesCheckItem.setState(true);
 	menus.toolbarCheckItem.setState(!hideMenu && !noEditing && !hideSidebar && height > 700);
 	menus.crossHairCheckItem.setState(getOptionFromStorage("crossHair", false));
+	menus.reopenLastCheckItem.setState(getOptionFromStorage("reopenLast", false));
 	menus.euroResistorCheckItem.setState(euroSetting);
 	menus.euroResistorCheckItem.setCommand(
 		new Command() { public void execute(){
@@ -395,6 +396,8 @@ public class UIManager {
 		// there is a bug in electron that makes it impossible to close the app if this warning is given
 		if (app.unsavedChanges && !app.isElectron())
 		    event.setMessage(Locale.LS("Are you sure?  There are unsaved changes."));
+		if (menus.reopenLastCheckItem.getState())
+		    app.saveLastSession();
 	    }
 	});
 
@@ -1393,7 +1396,10 @@ public class UIManager {
 
     // ---- Other ----
 
+    String circuitTitle;
+
     void setCircuitTitle(String s) {
+	circuitTitle = s;
 	titleLabel.setText(s == null ? s : s.replace("_", "_\u200B"));
 	if (s != null && s.length() > 0)
 	    Document.get().setTitle(s + " - " + CirSim.baseTitle);

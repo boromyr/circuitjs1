@@ -277,6 +277,9 @@ ipcMain.on('remove-recent-file', (event, file) => {
   saveRecentFiles(loadRecentFiles().filter(function (f) { return !sameFile(f, file); }));
 });
 
+// only the first window may reopen the last circuit (Options > Reopen Last Circuit at Startup)
+var firstWindowMade = false;
+
 function createWindow () {
   // On Mac, use open-file event path; on Windows/Linux use argv[1]
   var fileToOpen = pendingOpenFile;
@@ -304,6 +307,9 @@ function createWindow () {
   var queryParts = [];
   if (fileToOpen)
     queryParts.push('openFile=' + encodeURIComponent(fileToOpen));
+  if (!firstWindowMade)
+    queryParts.push('restoreLast=1');
+  firstWindowMade = true;
   Object.keys(extraParams).forEach(function(k) {
     queryParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(extraParams[k]));
   });

@@ -3,6 +3,11 @@ const fs = require('fs');
 
 var lastSavedFilePath = null;
 
+// the file of the current circuit, for Options > Reopen Last Circuit at Startup
+window.getCurrentFile = function () { return lastSavedFilePath; }
+window.setCurrentFile = function (path) { lastSavedFilePath = path; }
+window.fileExists = function (path) { try { return fs.statSync(path).isFile(); } catch (e) { return false; } }
+
 window.showSaveDialog = function (defaultPath) { return ipcRenderer.invoke('show-save-dialog', defaultPath); }
 
 window.saveFile = function (file, data, encoding) {

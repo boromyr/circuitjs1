@@ -30,6 +30,7 @@ import java.util.Random;
 import java.lang.Math;
 
 import com.google.gwt.user.client.Event.NativePreviewEvent;
+import com.google.gwt.storage.client.Storage;
 import com.google.gwt.user.client.Event.NativePreviewHandler;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.user.client.Element;
@@ -233,8 +234,11 @@ public class CirSim implements NativePreviewHandler {
 	    menus.getSetupList(false);
 	    loader.readCircuit(startCircuitText);
 	    String electronFileName = getElectronStartCircuitFileName();
-	    if (electronFileName != null)
+	    if (electronFileName != null) {
 		setCircuitTitle(electronFileName);
+		// opened from a file (command line): Save writes back to it
+		allowSave(true);
+	    }
 	    unsavedChanges = false;
 	} else {
 	    if (stopMessage == null && startCircuitLink!=null) {
@@ -247,6 +251,11 @@ public class CirSim implements NativePreviewHandler {
 		if (stopMessage == null && startCircuit != null) {
 		    menus.getSetupList(false);
 		    menus.readSetupFile(startCircuit, startLabel);
+		}
+		else if (stopMessage == null && menus.reopenLastCheckItem.getState() &&
+			 (!isElectron() || qp.getValue("restoreLast") != null) && hasLastSession()) {
+		    menus.getSetupList(false);
+		    restoreLastSession();
 		}
 		else
 		    menus.getSetupList(true);
@@ -468,6 +477,65 @@ public class CirSim implements NativePreviewHandler {
     static final String baseTitle = "Circuit Simulator";
 
     void setCircuitTitle(String s) { ui.setCircuitTitle(s); }
+
+    // Options > Reopen Last Circuit at Startup: the circuit as it was when the app was closed,
+    // and in Electron the file it belongs to.  That file is opened again if the circuit had no
+    // unsaved changes; otherwise the changed circuit comes back, still saved to the file.
+    void saveLastSession() {
+	Storage stor = Storage.getLocalStorageIfSupported();
+	if (stor == null)
+	    return;
+	String file = (isElectron() && menus.saveFileItem.isEnabled()) ? electronCurrentFile() : null;
+	stor.setItem("lastSession", sessionJSON(dumpCircuit(), file, ui.circuitTitle, unsavedChanges));
+    }
+
+    boolean hasLastSession() {
+	Storage stor = Storage.getLocalStorageIfSupported();
+	return stor != null && stor.getItem("lastSession") != null;
+    }
+
+    void restoreLastSession() {
+	String s = Storage.getLocalStorageIfSupported().getItem("lastSession");
+	String text = sessionField(s, "text"), file = sessionField(s, "file"), title = sessionField(s, "title");
+	boolean unsaved = "true".equals(sessionField(s, "unsaved"));
+	if (file != null && isElectron() && electronFileExists(file)) {
+	    if (!unsaved) {
+		CommandManager.electronOpenRecentFile(file);
+		return;
+	    }
+	    electronSetCurrentFile(file);
+	    readCircuit(text);
+	    setCircuitTitle(title);
+	    allowSave(true);
+	} else {
+	    if (text == null)
+		return;
+	    readCircuit(text);
+	    setCircuitTitle(title);
+	    allowSave(false);
+	}
+	unsavedChanges = unsaved;
+    }
+
+    static native String sessionJSON(String text, String file, String title, boolean unsaved) /*-{
+	return JSON.stringify({ text: text, file: file, title: title, unsaved: unsaved });
+    }-*/;
+
+    static native String sessionField(String json, String key) /*-{
+	try { var v = JSON.parse(json)[key]; return v == null ? null : String(v); } catch (e) { return null; }
+    }-*/;
+
+    static native String electronCurrentFile() /*-{
+	return $wnd.getCurrentFile ? ($wnd.getCurrentFile() || null) : null;
+    }-*/;
+
+    static native void electronSetCurrentFile(String path) /*-{
+	if ($wnd.setCurrentFile) $wnd.setCurrentFile(path);
+    }-*/;
+
+    static native boolean electronFileExists(String path) /*-{
+	return $wnd.fileExists ? $wnd.fileExists(path) : false;
+    }-*/;
     
     void clearCircuit() { loader.clearCircuit(); }
     void readCircuit(String s) { loader.readCircuit(s); }

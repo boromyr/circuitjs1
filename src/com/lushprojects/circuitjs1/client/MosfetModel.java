@@ -48,6 +48,8 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 	beta = b;
 	showBulk = true;
 	bodyDiode = true;
+	// the body diode is drawn by default
+	showBodyDiodeSymbol = true;
     }
 
     MosfetModel() {
@@ -55,6 +57,8 @@ public class MosfetModel implements Editable, Comparable<MosfetModel> {
 	beta = .02;
 	showBulk = true;
 	bodyDiode = true;
+	// the body diode is drawn by default
+	showBodyDiodeSymbol = true;
     }
 
     MosfetModel(MosfetModel copy) {

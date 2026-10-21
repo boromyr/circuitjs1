@@ -116,7 +116,8 @@ class MosfetElm extends CircuitElm implements MouseWheelHandler {
 	    boolean legacyDigital = (legacyFlags & FLAG_DIGITAL_LEGACY) != 0;
 	    boolean legacyBodyDiode = (legacyFlags & FLAG_BODY_DIODE_LEGACY) != 0;
 	    boolean legacyBodyTerminal = (legacyFlags & FLAG_BODY_TERMINAL_LEGACY) != 0;
-	    boolean legacyShowBodyDiode = (legacyFlags & FLAG_SHOW_BODY_DIODE_LEGACY) != 0;
+	    // the body diode is drawn by default, in old circuits too
+	    boolean legacyShowBodyDiode = legacyBodyDiode || (legacyFlags & FLAG_SHOW_BODY_DIODE_LEGACY) != 0;
 	    flags &= ~(FLAG_DIGITAL_LEGACY|FLAG_HIDE_BULK_LEGACY|FLAG_BODY_DIODE_LEGACY|
 		       FLAG_BODY_TERMINAL_LEGACY|FLAG_SHOW_BODY_DIODE_LEGACY);
 	    return MosfetModel.getModelWithParameters(vt0, beta0, isJfet(), legacyShowBulk,

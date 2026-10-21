@@ -65,6 +65,7 @@ public class Menus {
     CheckboxMenuItem conventionCheckItem;
     CheckboxMenuItem noEditCheckItem;
     CheckboxMenuItem mouseWheelEditCheckItem;
+    CheckboxMenuItem reopenLastCheckItem;
     CheckboxMenuItem toolbarCheckItem;
     MenuBar elmMenuBar;
     MenuItem elmEditMenuItem;
@@ -261,6 +262,11 @@ public class Menus {
 	m.addItem(mouseWheelEditCheckItem = new CheckboxMenuItem(Locale.LS("Edit Values With Mouse Wheel"),
 		new Command() { public void execute(){
 		    sim.setOptionInStorage("mouseWheelEdit", mouseWheelEditCheckItem.getState());
+		}
+	}));
+	m.addItem(reopenLastCheckItem = new CheckboxMenuItem(Locale.LS("Reopen Last Circuit at Startup"),
+		new Command() { public void execute(){
+		    sim.setOptionInStorage("reopenLast", reopenLastCheckItem.getState());
 		}
 	}));
 
