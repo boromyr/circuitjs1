@@ -642,6 +642,7 @@
 "Slew Rate (V/ns)"="Slew Rate (V/ns)"
 "Slider Text"="Testo del Cursore"
 "Small Grid"="Griglia Ridotta"
+"Show Grid"="Mostra griglia"
 "Source Follower"="Inseguitore di Source"
 "Spark Gap"="Scaricatore a Fulmine"
 "Speed 1/2x"="Dimezza Velocità"

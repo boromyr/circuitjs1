@@ -207,6 +207,7 @@ public class UIManager {
 	menus.showValuesCheckItem.setState(true);
 	menus.toolbarCheckItem.setState(!hideMenu && !noEditing && !hideSidebar && height > 700);
 	menus.crossHairCheckItem.setState(getOptionFromStorage("crossHair", false));
+	menus.showGridCheckItem.setState(getOptionFromStorage("showGrid", true));
 	menus.reopenLastCheckItem.setState(getOptionFromStorage("reopenLast", false));
 	menus.euroResistorCheckItem.setState(euroSetting);
 	menus.euroResistorCheckItem.setCommand(
@@ -674,6 +675,8 @@ public class UIManager {
         g.setColor(Color.white);
 
         double scale = devicePixelRatio();
+        if (menus.showGridCheckItem.getState())
+            drawGrid(scale);
         cvcontext.setTransform(app.transform[0] * scale, 0, 0, app.transform[3] * scale, app.transform[4] * scale, app.transform[5] * scale);
 
         perfmon.startContext("elm.draw()");
@@ -826,6 +829,38 @@ public class UIManager {
 	g.setFont(CircuitElm.unitsFont);
 	g.setColor(Color.yellow);
 	g.drawString("exception, see console!", x, canvasHeight-10);
+    }
+
+    // a dot at each point of the snap grid, under the circuit, like the schematic editor of
+    // KiCad.  Drawn in screen pixels so the dots stay small and sharp at any zoom; when zoomed
+    // out so far that they would crowd together, only every 2nd, 4th... point gets one.
+    static final double GRID_MIN_SPACING = 8;   // CSS pixels between the dots drawn
+
+    void drawGrid(double scale) {
+        double zoom = app.transform[0];
+        double step = app.gridSize*zoom;
+        if (!(step > 0))
+            return;
+        int every = 1;
+        while (step*every < GRID_MIN_SPACING)
+            every *= 2;
+        double spacing = step*every;
+        int w = app.circuitArea.width, h = app.circuitArea.height;
+        // first visible grid point, in grid units (a multiple of "every", so the coarser
+        // grid keeps the same points while panning)
+        double unit = app.gridSize*every;
+        long i0 = (long) Math.ceil(-app.transform[4]/zoom/unit);
+        long j0 = (long) Math.ceil(-app.transform[5]/zoom/unit);
+        double x0 = app.transform[4] + i0*unit*zoom, y0 = app.transform[5] + j0*unit*zoom;
+        // dots a bit bigger when zoomed in
+        double d = Math.max(1.2, Math.min(2.2, zoom*1.5));
+        cvcontext.setTransform(scale, 0, 0, scale, 0, 0);
+        cvcontext.setFillStyle(menus.printableCheckItem.getState() ? "#a8a8a8" : "#6a6a6a");
+        cvcontext.beginPath();
+        for (double y = y0; y < h; y += spacing)
+            for (double x = x0; x < w; x += spacing)
+                cvcontext.rect(x-d/2, y-d/2, d, d);
+        cvcontext.fill();
     }
 
     void drawBottomArea(Graphics g) {
