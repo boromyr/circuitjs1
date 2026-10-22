@@ -49,6 +49,8 @@
 		source: '',
 		output: '',
 		cursors: false,
+		scale: 'db',    // vertical scale: db, dba, phon or sone (see perceived())
+		listen: 85,     // listening level for phon/sone: dB SPL of the peak of the current trace
 		curA: null,     // cursor frequencies (Hz), null = not placed yet
 		curB: null
 	};
@@ -66,6 +68,12 @@
 			clear: 'Clear held', clearTip: 'Remove the held traces', csv: 'Copy CSV',
 			csvTip: 'Copy the data (frequency, dB, phase) to the clipboard', none: '(none)',
 			freqAxis: 'Frequency (Hz)', magAxis: 'Magnitude (dB)', phaseAxis: 'Phase (°)',
+			scale: 'Scale', scaleTip: 'Vertical scale: voltage gain, or how loud the ear hears each frequency',
+			scDb: 'dB (voltage)', scDba: 'dB(A) (ear, low volume)', scPhon: 'Phon (loudness level)', scSone: 'Sone (perceived loudness)',
+			listen: 'Listening', listenTip: 'Sound level (dB SPL) of the loudest point of the current trace: the ear hears bass and treble differently at different volumes',
+			axDba: 'A-weighted gain (dB(A))', axPhon: 'Loudness level (phon)', axSone: 'Perceived loudness (sone)',
+			percInfo: 'Equal-loudness contours ISO 226:2003, peak at {n} dB SPL (outside 20 Hz - 12.5 kHz: estimated from the threshold of hearing).',
+			dbaInfo: 'A-weighting (IEC 61672): the ear at low volume, independent of the level.',
 			cursors: 'Cursors', cursorsTip: 'Two vertical cursors: drag them (or click in the plot) to read two points and their difference',
 			current: 'current', trace: 'trace', copied: 'Data copied to the clipboard ({n} points).',
 			popup: 'Could not open the Bode plot window (popup blocked?).',
@@ -89,6 +97,12 @@
 			clear: 'Cancella fissate', clearTip: 'Rimuove le curve fissate', csv: 'Copia CSV',
 			csvTip: 'Copia i dati (frequenza, dB, fase) negli appunti', none: '(nessuno)',
 			freqAxis: 'Frequenza (Hz)', magAxis: 'Modulo (dB)', phaseAxis: 'Fase (°)',
+			scale: 'Scala', scaleTip: 'Scala verticale: guadagno in tensione, oppure quanto forte l\'orecchio sente ogni frequenza',
+			scDb: 'dB (tensione)', scDba: 'dB(A) (orecchio, volume basso)', scPhon: 'Phon (livello di sonorità)', scSone: 'Sone (volume percepito)',
+			listen: 'Ascolto', listenTip: 'Livello sonoro (dB SPL) del punto più forte della curva attuale: l\'orecchio sente bassi e acuti in modo diverso a volumi diversi',
+			axDba: 'Guadagno ponderato A (dB(A))', axPhon: 'Livello di sonorità (phon)', axSone: 'Volume percepito (sone)',
+			percInfo: 'Curve isofoniche ISO 226:2003, picco a {n} dB SPL (fuori da 20 Hz - 12,5 kHz: stima dalla soglia dell\'udito).',
+			dbaInfo: 'Ponderazione A (IEC 61672): l\'orecchio a basso volume, indipendente dal livello.',
 			cursors: 'Cursori', cursorsTip: 'Due cursori verticali: trascinali (o fai clic nel grafico) per leggere due punti e la loro differenza',
 			current: 'attuale', trace: 'curva', copied: 'Dati copiati negli appunti ({n} punti).',
 			popup: 'Impossibile aprire la finestra del diagramma di Bode (popup bloccato?).',
@@ -158,6 +172,93 @@
 	}
 
 	// ------------------------------------------------------------------
+	// perceived loudness
+	// ------------------------------------------------------------------
+
+	// ISO 226:2003 equal-loudness contours: for each frequency, the exponent af, the magnitude
+	// of the linear transfer function Lu (dB) and the threshold of hearing Tf (dB SPL)
+	var ISO_F = [20, 25, 31.5, 40, 50, 63, 80, 100, 125, 160, 200, 250, 315, 400, 500, 630, 800,
+		1000, 1250, 1600, 2000, 2500, 3150, 4000, 5000, 6300, 8000, 10000, 12500];
+	var ISO_AF = [0.532, 0.506, 0.480, 0.455, 0.432, 0.409, 0.387, 0.367, 0.349, 0.330, 0.315, 0.301, 0.288,
+		0.276, 0.267, 0.259, 0.253, 0.250, 0.246, 0.244, 0.243, 0.243, 0.243, 0.242, 0.242, 0.245, 0.254, 0.271, 0.301];
+	var ISO_LU = [-31.6, -27.2, -23.0, -19.1, -15.9, -13.0, -10.3, -8.1, -6.2, -4.5, -3.1, -2.0, -1.1, -0.4,
+		0.0, 0.3, 0.5, 0.0, -2.7, -4.1, -1.0, 1.7, 2.5, 1.2, -2.1, -7.1, -11.2, -10.7, -3.1];
+	var ISO_TF = [78.5, 68.7, 59.5, 51.1, 44.0, 37.5, 31.5, 26.5, 22.1, 17.9, 14.4, 11.4, 8.6, 6.2, 4.4,
+		3.0, 2.2, 2.4, 3.5, 1.7, -1.3, -4.2, -6.0, -5.4, -1.5, 6.0, 12.6, 13.9, 12.3];
+
+	// Outside 20 Hz - 12.5 kHz the standard has no data, but the ear goes deaf quickly there:
+	// the threshold of hearing is taken from ISO 389-7 above (young listeners, free field) and
+	// from infrasound measurements below (Moller & Pedersen 2004), the shape terms af and Lu
+	// are held at the ends of the table
+	var TH_LOW_F = [8, 10, 12.5, 16, 20], TH_LOW = [100, 97, 92, 88, 78.5];
+	var TH_HIGH_F = [12500, 14000, 16000, 18000], TH_HIGH = [12.3, 18.4, 40.2, 73.2];
+
+	// y at x on a log x scale through the points (xs, ys), straight on beyond the ends
+	function logInterp(xs, ys, x) {
+		var i = 1, n = xs.length;
+		while (i < n - 1 && xs[i] < x) i++;
+		var t = Math.log(x / xs[i - 1]) / Math.log(xs[i] / xs[i - 1]);
+		return ys[i - 1] + (ys[i] - ys[i - 1]) * t;
+	}
+
+	// the parameters at frequency f, interpolated on a log frequency scale
+	function isoParams(f) {
+		var n = ISO_F.length;
+		if (!(f > ISO_F[0])) return [ISO_AF[0], ISO_LU[0], logInterp(TH_LOW_F, TH_LOW, Math.max(f, 1))];
+		if (f >= ISO_F[n - 1]) return [ISO_AF[n - 1], ISO_LU[n - 1], logInterp(TH_HIGH_F, TH_HIGH, f)];
+		var i = 1;
+		while (ISO_F[i] < f) i++;
+		var t = Math.log(f / ISO_F[i - 1]) / Math.log(ISO_F[i] / ISO_F[i - 1]);
+		var lin = function (a) { return a[i - 1] + (a[i] - a[i - 1]) * t; };
+		return [lin(ISO_AF), lin(ISO_LU), lin(ISO_TF)];
+	}
+
+	// loudness level (phon) of a tone of the given sound pressure level (ISO 226:2003, eq. 2),
+	// or NaN below the threshold of hearing
+	function phon(f, spl) {
+		var p = isoParams(f), af = p[0], lu = p[1], tf = p[2];
+		if (spl < tf) return NaN;
+		var bf = Math.pow(0.4 * Math.pow(10, (spl + lu) / 10 - 9), af) -
+			Math.pow(0.4 * Math.pow(10, (tf + lu) / 10 - 9), af) + 0.005135;
+		return 40 * Math.log10(bf) + 94;
+	}
+
+	// perceived loudness (sone) of a loudness level: twice as loud every 10 phon above 40
+	// (Stevens), and the usual power law below, where the doubling rule no longer holds
+	function sone(ph) {
+		if (!isFinite(ph)) return 0;
+		return ph >= 40 ? Math.pow(2, (ph - 40) / 10) : Math.pow(Math.max(ph, 0) / 40, 2.642);
+	}
+
+	// A-weighting (IEC 61672), in dB
+	function aWeight(f) {
+		var f2 = f * f;
+		var ra = 148693636 * f2 * f2 /
+			((f2 + 424.36) * Math.sqrt((f2 + 11599.29) * (f2 + 544496.41)) * (f2 + 148693636));
+		return 20 * Math.log10(ra) + 2.0;
+	}
+
+	// the values of a trace on the chosen scale.  For phon and sone the sound level of each
+	// frequency is the listening level minus how far the gain is below ref (the peak of the
+	// current trace), so held traces compare with it at the same volume knob.
+	function perceived(r, ref) {
+		var off = settings.offset, mode = settings.scale;
+		return r.db.map(function (db, i) {
+			if (!isFinite(db) || db < -300) return NaN;
+			if (mode === 'dba') return db + off + aWeight(r.f[i]);
+			if (mode === 'phon' || mode === 'sone') {
+				var ph = phon(r.f[i], settings.listen + db - ref);
+				return mode === 'phon' ? ph : sone(ph);
+			}
+			return db + off;
+		});
+	}
+
+	function unit() {
+		return { db: 'dB', dba: 'dB(A)', phon: 'phon', sone: 'sone' }[settings.scale] || 'dB';
+	}
+
+	// ------------------------------------------------------------------
 	// formatting helpers
 	// ------------------------------------------------------------------
 
@@ -212,7 +313,12 @@
 		'<label><span class="lbl">' + S.output + '</span> <select id="selOut"></select></label>' +
 		'<span class="sep"></span>' +
 		'<label><span class="lbl">' + S.freq + '</span> <select id="selFmin"></select> – <select id="selFmax"></select></label>' +
-		'<label><span class="lbl">dB</span> <select id="selY">' +
+		'<label title="' + S.scaleTip + '"><span class="lbl">' + S.scale + '</span> <select id="selScale">' +
+		'<option value="db">' + S.scDb + '</option><option value="dba">' + S.scDba + '</option>' +
+		'<option value="phon">' + S.scPhon + '</option><option value="sone">' + S.scSone + '</option></select></label>' +
+		'<label id="lbListen" title="' + S.listenTip + '"><span class="lbl">' + S.listen + '</span> ' +
+		'<input type="number" id="inListen" step="5" min="20" max="120"> dB SPL</label>' +
+		'<label id="lbY"><span class="lbl">dB</span> <select id="selY">' +
 		'<option value="auto">Auto</option><option value="0,-48">0 … −48</option>' +
 		'<option value="12,-48">+12 … −48</option><option value="0,-80">0 … −80</option>' +
 		'<option value="40,-40">+40 … −40</option><option value="60,-60">+60 … −60</option>' +
@@ -264,7 +370,8 @@
 			doc: d, cv: $('cv'), wrap: $('wrap'), status: $('status'),
 			cbMag: $('cbMag'), cbPhase: $('cbPhase'), cbCur: $('cbCur'), selSrc: $('selSrc'), selOut: $('selOut'),
 			selFmin: $('selFmin'), selFmax: $('selFmax'), selY: $('selY'), inOff: $('inOff'),
-			lbYc: $('lbYc'), inYmax: $('inYmax'), inYmin: $('inYmin'), inSpeed: $('inSpeed')
+			lbYc: $('lbYc'), inYmax: $('inYmax'), inYmin: $('inYmin'), inSpeed: $('inSpeed'),
+			selScale: $('selScale'), inListen: $('inListen'), lbListen: $('lbListen'), lbY: $('lbY')
 		};
 		lastSrcKey = lastOutKey = null;
 		FREQS_MIN.forEach(function (f) { addOpt(ui.selFmin, f, fmtFreq(f)); });
@@ -285,7 +392,10 @@
 		ui.inSpeed.onpointerup = ui.inSpeed.onpointercancel = function () { ui.speedDrag = false; };
 		ui.inYmax.value = settings.yMax;
 		ui.inYmin.value = settings.yMin;
-		ui.lbYc.style.display = settings.yRange === 'custom' ? '' : 'none';
+		ui.selScale.value = settings.scale;
+		if (ui.selScale.value === '') ui.selScale.value = settings.scale = 'db';
+		ui.inListen.value = settings.listen;
+		showScaleControls();
 
 		function changed(recompute) {
 			settings.showMag = ui.cbMag.checked;
@@ -298,7 +408,10 @@
 			var a = parseFloat(ui.inYmax.value), b = parseFloat(ui.inYmin.value);
 			if (isFinite(a)) settings.yMax = a;
 			if (isFinite(b)) settings.yMin = b;
-			ui.lbYc.style.display = settings.yRange === 'custom' ? '' : 'none';
+			settings.scale = ui.selScale.value;
+			var lv = parseFloat(ui.inListen.value);
+			if (isFinite(lv)) settings.listen = Math.max(0, Math.min(140, lv));
+			showScaleControls();
 			settings.source = ui.selSrc.value;
 			settings.output = ui.selOut.value;
 			settings.sourceList = lastSrcKey;
@@ -307,7 +420,8 @@
 			if (recompute) { lastSweepTime = 0; tick(); } else draw();
 		}
 		ui.cbMag.onchange = ui.cbPhase.onchange = ui.cbCur.onchange = ui.selY.onchange = function () { changed(false); };
-		ui.inOff.oninput = ui.inYmax.oninput = ui.inYmin.oninput = function () { changed(false); };
+		ui.inOff.oninput = ui.inYmax.oninput = ui.inYmin.oninput = ui.inListen.oninput = function () { changed(false); };
+		ui.selScale.onchange = function () { changed(false); };
 		ui.selFmin.onchange = ui.selFmax.onchange = ui.selSrc.onchange = ui.selOut.onchange = function () { changed(true); };
 		$('btHold').onclick = function () {
 			if (!result || !result.f.length) return;
@@ -323,6 +437,14 @@
 			saveGeom();
 		};
 		draw();
+	}
+
+	// the dB range only applies to the dB scales, the listening level only to phon and sone
+	function showScaleControls() {
+		var dbScale = settings.scale === 'db' || settings.scale === 'dba';
+		ui.lbY.style.display = dbScale ? '' : 'none';
+		ui.lbYc.style.display = dbScale && settings.yRange === 'custom' ? '' : 'none';
+		ui.lbListen.style.display = dbScale ? 'none' : '';
 	}
 
 	// mouse on the plot: the hover readout, and dragging the cursors.  A press near a cursor
@@ -401,9 +523,17 @@
 
 	function copyCsv() {
 		if (!result) return;
-		var lines = ['freq_Hz;magnitude_dB;phase_deg'];
+		// on a perceived scale also its column (phon and sone relative to this trace's peak)
+		var extra = settings.scale !== 'db', v = null;
+		if (extra) {
+			var ref = -Infinity;
+			result.db.forEach(function (x) { if (isFinite(x) && x > ref) ref = x; });
+			v = perceived(result, ref);
+		}
+		var lines = ['freq_Hz;magnitude_dB;phase_deg' + (extra ? ';' + unit().replace(/[()]/g, '') : '')];
 		for (var i = 0; i < result.f.length; i++)
-			lines.push(result.f[i].toPrecision(6) + ';' + (result.db[i] + settings.offset).toFixed(3) + ';' + result.ph[i].toFixed(2));
+			lines.push(result.f[i].toPrecision(6) + ';' + (result.db[i] + settings.offset).toFixed(3) + ';' + result.ph[i].toFixed(2) +
+				(extra ? ';' + (isFinite(v[i]) ? v[i].toFixed(4) : '') : ''));
 		var text = lines.join('\n');
 		var done = function () { setStatus(fmt(S.copied, result.f.length)); };
 		try {
@@ -522,6 +652,8 @@
 			if (!parts.length && result) {
 				parts.push(fmt(S.ok, NPOINTS));
 				if (result.op === 'transient') parts.push(S.transient);
+				if (settings.scale === 'phon' || settings.scale === 'sone') parts.push(fmt(S.percInfo, settings.listen));
+				else if (settings.scale === 'dba') parts.push(S.dbaInfo);
 			}
 			msg = parts.join(' &nbsp; ');
 		}
@@ -533,7 +665,7 @@
 	// ------------------------------------------------------------------
 
 	function niceStep(range) {
-		var steps = [1, 2, 3, 5, 6, 10, 12, 20, 30, 40, 50, 100];
+		var steps = [0.1, 0.2, 0.25, 0.5, 1, 2, 3, 5, 6, 10, 12, 20, 30, 40, 50, 100];
 		for (var i = 0; i < steps.length; i++) if (range / steps[i] <= 10) return steps[i];
 		return 200;
 	}
@@ -556,23 +688,31 @@
 		var pw = W - L - Rm, ph = H - T - B;
 		if (pw < 40 || ph < 40) return;
 
-		var off = settings.offset;
 		var traces = held.slice();
 		if (result) traces.push({ name: S.current, color: '#4f8cff', r: result, main: true });
+		// the values on the chosen scale (tr.v), with the peak of the current trace as the reference
+		var mode = settings.scale, ref = -Infinity;
+		(result ? [result] : held.map(function (h) { return h.r; })).forEach(function (r) {
+			r.db.forEach(function (v) { if (isFinite(v) && v > ref) ref = v; });
+		});
+		traces.forEach(function (tr) { tr.v = perceived(tr.r, ref); });
+		var isSone = mode === 'sone', dbScale = mode === 'db' || mode === 'dba';
 
 		// magnitude range
 		var ymax, ymin;
-		if (settings.yRange === 'auto') {
+		if (settings.yRange === 'auto' || !dbScale) {
 			var lo = Infinity, hi = -Infinity;
 			traces.forEach(function (tr) {
-				tr.r.db.forEach(function (v) { if (isFinite(v) && v > -300) { v += off; if (v < lo) lo = v; if (v > hi) hi = v; } });
+				tr.v.forEach(function (v) { if (isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } });
 			});
-			if (!isFinite(lo)) { lo = -48; hi = 0; }
-			var span = Math.max(hi - lo, 12);
+			if (!isFinite(lo)) { lo = isSone ? 0 : -48; hi = isSone ? 1 : 0; }
+			if (isSone) lo = 0;
+			var minSpan = isSone ? Math.max(hi * 0.2, 0.5) : 12;
+			var span = Math.max(hi - lo, minSpan);
 			var st = niceStep(span * 1.2);
 			ymax = Math.ceil((hi + span * 0.08) / st) * st;
-			ymin = Math.floor((lo - span * 0.08) / st) * st;
-			if (ymax - ymin < 12) ymin = ymax - 12;
+			ymin = isSone ? 0 : Math.floor((lo - span * 0.08) / st) * st;
+			if (ymax - ymin < minSpan) ymin = ymax - minSpan;
 		} else if (settings.yRange === 'custom') {
 			ymax = Math.max(settings.yMax, settings.yMin);
 			ymin = Math.min(settings.yMax, settings.yMin);
@@ -622,12 +762,12 @@
 				g.strokeStyle = v === 0 ? '#5c5c5c' : '#363636';
 				line(g, L, y, L + pw, y);
 				g.fillStyle = '#9a9a9a';
-				g.fillText(String(Math.round(v * 10) / 10), L - 8, y);
+				g.fillText(String(Math.round(v * 100) / 100), L - 8, y);
 			}
 			g.save();
 			g.translate(16, T + ph / 2); g.rotate(-Math.PI / 2);
 			g.textAlign = 'center'; g.fillStyle = '#9a9a9a';
-			g.fillText(S.magAxis, 0, 0);
+			g.fillText({ db: S.magAxis, dba: S.axDba, phon: S.axPhon, sone: S.axSone }[mode] || S.magAxis, 0, 0);
 			g.restore();
 		}
 		// phase axis
@@ -652,7 +792,7 @@
 		g.save();
 		g.beginPath(); g.rect(L, T, pw, ph); g.clip();
 		traces.forEach(function (tr) {
-			if (showMag) plot(g, tr.r.f, tr.r.db, X, function (v) { return Y(v + off); }, tr.color, tr.main ? 2.2 : 1.6, null);
+			if (showMag) plot(g, tr.r.f, tr.v, X, Y, tr.color, tr.main ? 2.2 : 1.6, null);
 			if (showPh) plot(g, tr.r.f, tr.r.ph, X, YP, tr.main ? '#e67e22' : tr.color, tr.main ? 1.8 : 1.2, tr.main ? null : [5, 4], true);
 		});
 		g.restore();
@@ -699,16 +839,17 @@
 			var sgn = function (v) { return v >= 0 ? '+' : ''; };
 			// fixed decimals, without a "-0.00" for tiny negative values
 			var fx = function (v, d) { var s = v.toFixed(d); return /^-0\.?0*$/.test(s) ? s.slice(1) : s; };
+			var u = unit(), dec2 = isSone ? 3 : 2;
 			var val = function (db, deg) {
 				var s = [];
-				if (showDb) s.push(isFinite(db) ? fx(db, 2) + ' dB' : '—');
+				if (showDb) s.push(isFinite(db) ? fx(db, dec2) + ' ' + u : '—');
 				if (showPh) s.push(isFinite(deg) ? fx(deg, 1) + '°' : '—');
 				return s.join('  ');
 			};
 			var dec = Math.log10(fcs[1] / fcs[0]), dfq = fcs[1] - fcs[0];
 			var trows = [];
 			traces.slice().reverse().forEach(function (tr) {
-				var r = fcs.map(function (fc) { return { db: interp(tr.r.f, tr.r.db, fc) + off, ph: interp(tr.r.f, tr.r.ph, fc) }; });
+				var r = fcs.map(function (fc) { return { db: interp(tr.r.f, tr.v, fc), ph: interp(tr.r.f, tr.r.ph, fc) }; });
 				r.forEach(function (p, i) {
 					var cx = Math.round(X(fcs[i])) + 0.5;
 					if (showMag && isFinite(p.db)) dot(g, cx, Y(p.db), tr.color);
@@ -716,10 +857,12 @@
 				});
 				var ddb = r[1].db - r[0].db, dph = r[1].ph - r[0].ph;
 				var d = [];
-				if (showDb) d.push(isFinite(ddb) ? sgn(ddb) + fx(ddb, 2) + ' dB' : '—');
+				// in sone the comparison is a ratio: x2 is twice as loud
+				if (showDb && isSone) d.push(r[0].db > 0 && isFinite(r[1].db) ? '×' + fx(r[1].db / r[0].db, 2) : '—');
+				else if (showDb) d.push(isFinite(ddb) ? sgn(ddb) + fx(ddb, 2) + ' ' + u : '—');
 				if (showPh) d.push(isFinite(dph) ? sgn(dph) + fx(dph, 1) + '°' : '—');
 				// the slope between them, as in "-20 dB/decade" of a first-order roll-off
-				var slope = showDb && isFinite(ddb) && Math.abs(dec) > 1e-3 ? (ddb / dec).toFixed(1) + ' dB/dec' : '';
+				var slope = showDb && dbScale && isFinite(ddb) && Math.abs(dec) > 1e-3 ? (ddb / dec).toFixed(1) + ' ' + u + '/dec' : '';
 				trows.push({ c: tr.color, cells: [tr.main ? S.current : tr.name, val(r[0].db, r[0].ph), val(r[1].db, r[1].ph), d.join('  '), slope] });
 			});
 			if (trows.length) {
@@ -737,13 +880,13 @@
 			line(g, hx, T, hx, T + ph); g.setLineDash([]);
 			var rows = ['f = ' + fmtFreq(fh)];
 			traces.slice().reverse().forEach(function (tr) {
-				var vdb = interp(tr.r.f, tr.r.db, fh), vph = interp(tr.r.f, tr.r.ph, fh);
+				var vdb = interp(tr.r.f, tr.v, fh), vph = interp(tr.r.f, tr.r.ph, fh);
 				if (showMag && isFinite(vdb)) {
-					dot(g, hx, Y(vdb + off), tr.color);
+					dot(g, hx, Y(vdb), tr.color);
 				}
 				if (showPh && isFinite(vph)) dot(g, hx, YP(vph), tr.main ? '#e67e22' : tr.color);
 				var s = (tr.main ? '' : tr.name + ': ');
-				if (showMag || !showPh) s += (vdb + off).toFixed(2) + ' dB';
+				if (showMag || !showPh) s += isFinite(vdb) ? vdb.toFixed(isSone ? 3 : 2) + ' ' + unit() : '—';
 				if (showPh) s += (showMag ? '  ' : '') + vph.toFixed(1) + '°';
 				rows.push({ t: s, c: tr.color });
 			});
