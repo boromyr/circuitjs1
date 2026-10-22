@@ -19,6 +19,7 @@
 	var TRACE_COLORS = ['#2ecc71', '#e74c3c', '#b07cd8', '#1abc9c', '#f1c40f', '#95a5a6'];
 	var SIZES = [1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144];
 	var FMAX = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000];
+	var CURSORS = [{ key: 'curA', name: 'A', color: '#f5d142' }, { key: 'curB', name: 'B', color: '#3fd0e8' }];
 
 	// coherent gain, equivalent noise bandwidth and the half width (in bins) of the main
 	// lobe, which is summed to get the power of a tone and left out of the noise
@@ -57,6 +58,8 @@
 	var progress = 0;       // fraction of the samples needed that are recorded
 	var held = [];          // frozen spectra for comparison
 	var hover = null;       // {x, y}
+	var geom = null;        // plot area and frequency axis of the last drawing, for the cursors
+	var dragCur = -1;       // index in CURSORS of the cursor being dragged
 	var interval = 200, lastTime = 0;
 	var avg = null;         // {key, sum:[], n, list:[]} power average
 	var lastSampleT = null;
@@ -77,7 +80,10 @@
 		harmonics: 10,
 		markers: true,
 		fast: false,
-		logVolts: false
+		logVolts: false,
+		cursors: false,
+		curA: null,     // cursor frequencies (Hz), null = not placed yet
+		curB: null
 	};
 
 	// ------------------------------------------------------------------
@@ -88,7 +94,8 @@
 		en: {
 			title: 'FFT Spectrum', output: 'Signal', points: 'Points', window: 'Window', scale: 'Scale',
 			freqAxis: 'Frequency (Hz)', fmax: 'Max', log: 'Log', avg: 'Average', harm: 'Harmonics',
-			markers: 'Markers', logV: 'Log V', logVTip: 'Logarithmic voltage axis, so that small components are visible too', fast: 'Fast acquisition',
+			markers: 'Markers', cursors: 'Cursors', cursorsTip: 'Two vertical cursors: drag them (or click in the plot) to read two points and their difference',
+			logV: 'Log V', logVTip: 'Logarithmic voltage axis, so that small components are visible too', fast: 'Fast acquisition',
 			speed: 'Speed', speedTip: 'Simulation Speed (the same as the slider of the simulator)',
 			fastTip: 'While acquiring, run the simulation as fast as the computer allows, then back to the set speed', dbRange: 'dB', custom: 'Custom', auto: 'Auto', none: '(none)',
 			hold: 'Hold trace', holdTip: 'Freeze the current spectrum to compare it with later changes',
@@ -117,7 +124,8 @@
 		it: {
 			title: 'Spettro FFT', output: 'Segnale', points: 'Punti', window: 'Finestra', scale: 'Scala',
 			freqAxis: 'Frequenza (Hz)', fmax: 'Max', log: 'Log', avg: 'Media', harm: 'Armoniche',
-			markers: 'Marcatori', logV: 'Log V', logVTip: 'Asse delle tensioni logaritmico, per vedere anche le componenti piccole', fast: 'Acquisizione veloce',
+			markers: 'Marcatori', cursors: 'Cursori', cursorsTip: 'Due cursori verticali: trascinali (o fai clic nel grafico) per leggere due punti e la loro differenza',
+			logV: 'Log V', logVTip: 'Asse delle tensioni logaritmico, per vedere anche le componenti piccole', fast: 'Acquisizione veloce',
 			speed: 'Velocità', speedTip: 'Velocità di simulazione (la stessa della barra del simulatore)',
 			fastTip: 'Durante l\'acquisizione la simulazione va alla massima velocità possibile, poi torna alla velocità impostata', dbRange: 'dB', custom: 'Personalizzato', auto: 'Auto', none: '(nessuno)',
 			hold: 'Fissa curva', holdTip: 'Congela lo spettro attuale per confrontarlo con le modifiche successive',
@@ -539,6 +547,7 @@
 		'<label><span class="lbl">' + S.harm + '</span> <select id="selH">' +
 			options([5, 10, 20, 40].map(function (h) { return [h, h]; })) + '</select></label>' +
 		'<label><input type="checkbox" id="cbMark"> ' + S.markers + '</label>' +
+		'<label title="' + S.cursorsTip + '"><input type="checkbox" id="cbCur"> ' + S.cursors + '</label>' +
 		'<label title="' + S.fastTip + '"><input type="checkbox" id="cbFast"> ' + S.fast + '</label>' +
 		'<label title="' + S.speedTip + '"><span class="lbl">' + S.speed + '</span> <input type="range" id="inSpeed"></label>' +
 		'<span class="sep"></span>' +
@@ -582,7 +591,7 @@
 			doc: d, cv: $('cv'), wrap: $('wrap'), status: $('status'), meas: $('meas'),
 			selOut: $('selOut'), selN: $('selN'), selWin: $('selWin'), selAvg: $('selAvg'), selScale: $('selScale'),
 			selY: $('selY'), lbY: $('lbY'), lbYc: $('lbYc'), inYmax: $('inYmax'), inYmin: $('inYmin'),
-			cbLog: $('cbLog'), selFmax: $('selFmax'), selH: $('selH'), cbMark: $('cbMark'), cbFast: $('cbFast'), cbLogV: $('cbLogV'), lbLogV: $('lbLogV'), inSpeed: $('inSpeed')
+			cbLog: $('cbLog'), selFmax: $('selFmax'), selH: $('selH'), cbMark: $('cbMark'), cbCur: $('cbCur'), cbFast: $('cbFast'), cbLogV: $('cbLogV'), lbLogV: $('lbLogV'), inSpeed: $('inSpeed')
 		};
 		lastOutKey = null;
 		ui.selN.value = settings.size;
@@ -600,6 +609,7 @@
 		ui.selH.value = settings.harmonics;
 		if (ui.selH.value === '') ui.selH.value = settings.harmonics = 10;
 		ui.cbMark.checked = settings.markers;
+		ui.cbCur.checked = settings.cursors;
 		ui.cbFast.checked = settings.fast;
 		ui.cbLogV.checked = settings.logVolts;
 		try { ui.inSpeed.min = 0; ui.inSpeed.max = sim.getSimSpeedMax(); ui.inSpeed.value = sim.getSimSpeed(); } catch (e) {}
@@ -621,6 +631,7 @@
 			settings.fmax = ui.selFmax.value;
 			settings.harmonics = +ui.selH.value;
 			settings.markers = ui.cbMark.checked;
+			settings.cursors = ui.cbCur.checked;
 			settings.fast = ui.cbFast.checked;
 			settings.logVolts = ui.cbLogV.checked;
 			settings.output = ui.selOut.value;
@@ -630,7 +641,7 @@
 			if (reacquire) { avg = null; lastSampleT = null; lastTime = 0; tick(); }
 			else draw();
 		}
-		ui.selScale.onchange = ui.selY.onchange = ui.cbLog.onchange = ui.selFmax.onchange = ui.cbMark.onchange = ui.cbFast.onchange = ui.cbLogV.onchange =
+		ui.selScale.onchange = ui.selY.onchange = ui.cbLog.onchange = ui.selFmax.onchange = ui.cbMark.onchange = ui.cbCur.onchange = ui.cbFast.onchange = ui.cbLogV.onchange =
 			function () { changed(false); };
 		ui.inYmax.oninput = ui.inYmin.oninput = function () { changed(false); };
 		ui.selN.onchange = ui.selWin.onchange = ui.selAvg.onchange = ui.selOut.onchange = ui.selH.onchange =
@@ -648,13 +659,68 @@
 			draw();
 		};
 
-		ui.cv.onmousemove = function (ev) { hover = { x: ev.offsetX, y: ev.offsetY }; draw(); };
-		ui.cv.onmouseleave = function () { hover = null; draw(); };
+		hookCursors();
 		win.onresize = function () { draw(); saveGeom(); };
 		win.onbeforeunload = function () {
 			saveGeom();
 		};
 		draw();
+	}
+
+	// mouse on the plot: the hover readout, and dragging the cursors.  A press near a cursor
+	// grabs it; anywhere else in the plot it brings the nearest cursor there.
+	function hookCursors() {
+		var cv = ui.cv;
+		var inPlot = function (x, y) {
+			return geom && x >= geom.L - 8 && x <= geom.L + geom.pw + 8 && y >= geom.T && y <= geom.T + geom.ph;
+		};
+		cv.onpointerdown = function (ev) {
+			if (!settings.cursors || ev.button !== 0 || !inPlot(ev.offsetX, ev.offsetY)) return;
+			var i = cursorNear(ev.offsetX);
+			dragCur = i >= 0 ? i : nearestCursor(ev.offsetX);
+			if (i < 0) moveCursor(dragCur, ev.offsetX);
+			try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
+			ev.preventDefault();
+			draw();
+		};
+		cv.onpointermove = function (ev) {
+			hover = { x: ev.offsetX, y: ev.offsetY };
+			if (dragCur >= 0) moveCursor(dragCur, ev.offsetX);
+			cv.style.cursor = dragCur >= 0 || (settings.cursors && inPlot(ev.offsetX, ev.offsetY) &&
+				cursorNear(ev.offsetX) >= 0) ? 'ew-resize' : '';
+			draw();
+		};
+		cv.onpointerup = cv.onpointercancel = function (ev) {
+			if (dragCur < 0) return;
+			// the last move may not have been delivered before the release
+			if (ev.type === 'pointerup') moveCursor(dragCur, ev.offsetX);
+			dragCur = -1;
+			saveSettings();
+			draw();
+		};
+		cv.onpointerleave = function () { if (dragCur < 0) { hover = null; draw(); } };
+	}
+
+	// cursor i's frequency on the present axis (placed at a third and two thirds the first time)
+	function cursorFreq(i) {
+		var f = settings[CURSORS[i].key];
+		if (!num(f)) f = geom.Finv(geom.L + geom.pw * (i + 1) / 3);
+		return Math.min(Math.max(f, geom.fmin), geom.fmax);
+	}
+	function cursorNear(x) {
+		var best = -1, bd = 8;
+		for (var i = 0; i < CURSORS.length; i++) {
+			var d = Math.abs(geom.X(cursorFreq(i)) - x);
+			if (d <= bd) { best = i; bd = d; }
+		}
+		return best;
+	}
+	function nearestCursor(x) {
+		return Math.abs(geom.X(cursorFreq(0)) - x) <= Math.abs(geom.X(cursorFreq(1)) - x) ? 0 : 1;
+	}
+	function moveCursor(i, x) {
+		x = Math.min(Math.max(x, geom.L), geom.L + geom.pw);
+		settings[CURSORS[i].key] = geom.Finv(x);
 	}
 
 	function showRangeControls() {
@@ -959,8 +1025,9 @@
 		ui.status.innerHTML = msg;
 	}
 
-	function updateMeasurements() {
-		var M = S.m, h = '<h3>' + M.title + '</h3>';
+	// the side panel: the cursor readings (cur, HTML made by draw()) and the measurements
+	function updateMeasurements(cur) {
+		var M = S.m, h = cur + '<h3>' + M.title + '</h3>';
 		if (!meas) { ui.meas.innerHTML = h; return; }
 		var row = function (k, v) { return '<tr><td class="k">' + k + '</td><td class="v">' + v + '</td></tr>'; };
 		h += '<table class="big">';
@@ -1033,7 +1100,6 @@
 	function draw() {
 		if (!ui || !win || win.closed) return;
 		updateStatus();
-		updateMeasurements();
 		var cv = ui.cv, dpr = win.devicePixelRatio || 1;
 		var W = ui.wrap.clientWidth, H = ui.wrap.clientHeight;
 		if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
@@ -1046,7 +1112,7 @@
 
 		var L = 66, Rm = 18, T = 16, B = 46;
 		var pw = W - L - Rm, ph = H - T - B;
-		if (pw < 40 || ph < 40) return;
+		if (pw < 40 || ph < 40) { updateMeasurements(''); return; }
 
 		var isDb = settings.scale === 'dbv' || settings.scale === 'dbc', isLogV = logV();
 		var traces = held.slice();
@@ -1230,7 +1296,7 @@
 		if (held.length) {
 			g.font = '12px system-ui,"Segoe UI",sans-serif';
 			g.textAlign = 'left'; g.textBaseline = 'middle';
-			var ly = T + 14, lx = L + 12;
+			var ly = T + (settings.cursors ? 30 : 14), lx = L + 12;  // below the cursor tags
 			traces.forEach(function (tr) {
 				g.fillStyle = tr.color; g.fillRect(lx, ly - 1.5, 16, 3);
 				g.fillStyle = '#e0e0e0'; g.fillText(tr.main ? S.current : tr.name, lx + 22, ly);
@@ -1238,55 +1304,118 @@
 			});
 		}
 
-		// hover readout: the strongest bin under the cursor (within 3 pixels), so a peak is never
+		// a trace read at pixel column px: the strongest bin within 3 pixels, so a peak is never
 		// missed; where the bins are further apart on screen (the low end of a log axis) the
-		// curve at the cursor's frequency, so the readout follows the mouse instead of jumping
-		if (hover && traces.length && hover.x >= L && hover.x <= L + pw && hover.y >= T && hover.y <= T + ph) {
+		// curve at that frequency, so the reading follows the mouse instead of jumping.
+		// {f, r (RMS), x (where to put the dot), df (resolution to show f with)} or null.
+		var sampleAt = function (tr, px) {
+			var s = tr.s, fa = Math.max(0, Finv(px - 3)), fb = Finv(px + 3), fh = Finv(px), kh = Math.floor(fh / s.df);
+			if (logF && kh >= 1 && X((kh + 1) * s.df) - X(kh * s.df) > 3) {
+				var rv = curveAt(plotPoints(s, logF, fmin, fmax, X, pw), fh);
+				return rv > 0 ? { f: fh, r: rv, x: px, df: s.df / 10 } : null;
+			}
+			var ka = Math.max(logF ? 1 : 0, Math.floor(fa / s.df)), kb = Math.min(s.rms.length - 1, Math.ceil(fb / s.df));
+			var kbest = -1;
+			for (var k = ka; k <= kb; k++) if (kbest < 0 || s.rms[k] > s.rms[kbest]) kbest = k;
+			return kbest < 0 ? null : { f: kbest * s.df, r: s.rms[kbest], x: X(kbest * s.df), df: s.df };
+		};
+		var levelDot = function (sm, ref, color) {
+			var v = scaleFn(ref)(sm.r);
+			if (isFinite(v)) dot(g, sm.x, Y(Math.max(Math.min(v, ymax), ymin)), color);
+		};
+
+		// the two cursors: a line each, dots where they read the spectra, and at the top of the
+		// side panel (where it does not cover the spectrum) their frequencies and a table with,
+		// for the current spectrum and every held one, the levels at A and B and their difference
+		geom = { L: L, T: T, pw: pw, ph: ph, X: X, Finv: Finv, fmin: logF ? fmin : 0, fmax: fmax };
+		var curHtml = '';
+		if (settings.cursors && traces.length) {
+			var cxs = CURSORS.map(function (c, i) {
+				var cx = Math.round(X(cursorFreq(i))) + 0.5;
+				g.strokeStyle = c.color; g.lineWidth = i === dragCur ? 2 : 1;
+				line(g, cx, T, cx, T + ph);
+				g.lineWidth = 1;
+				// the tag stays inside the plot when the cursor is at an edge
+				var tx = Math.min(Math.max(cx, L + 7), L + pw - 7);
+				g.fillStyle = c.color; g.fillRect(tx - 7, T, 14, 15);
+				g.fillStyle = '#141414'; g.font = 'bold 11px system-ui,"Segoe UI",sans-serif';
+				g.textAlign = 'center'; g.textBaseline = 'middle';
+				g.fillText(c.name, tx, T + 8);
+				return cx;
+			});
+			var row = function (k, v) { return '<tr><td class="k">' + k + '</td><td class="v">' + v + '</td></tr>'; };
+			var kv = settings.scale === 'vpk' ? Math.SQRT2 : 1;
+			// a level without its unit when that is in the heading (the dB scales)
+			var lvl = function (sm, ref) {
+				if (!sm) return '—';
+				return isDb ? db20(settings.scale === 'dbc' ? sm.r / ref : sm.r).toFixed(2) : fmtV(sm.r * kv);
+			};
+			var ord = traces.slice().reverse(), first = null, trs = '';
+			ord.forEach(function (tr) {
+				var ref = refOf(tr), sms = cxs.map(function (cx) { return sampleAt(tr, cx); });
+				sms.forEach(function (sm) { if (sm) levelDot(sm, ref, tr.color); });
+				if (!first) first = sms;
+				var ddb = sms[0] && sms[1] ? db20(sms[1].r / sms[0].r) : NaN;
+				var name = tr.main ? S.current : ((tr.name.match(/#\d+$/) || [tr.name])[0]);
+				trs += '<tr><td><span style="display:inline-block;width:8px;height:3px;margin-right:5px;vertical-align:middle;background:' +
+					tr.color + '"></span>' + name + '</td><td>' + lvl(sms[0], ref) + '</td><td>' + lvl(sms[1], ref) + '</td><td>' +
+					(isFinite(ddb) ? (ddb >= 0 ? '+' : '') + ddb.toFixed(2) : '—') + '</td></tr>';
+			});
+			curHtml = '<h3>' + S.cursors + '</h3><table>';
+			CURSORS.forEach(function (c, i) {
+				curHtml += row('<b style="color:' + c.color + '">' + c.name + '</b>', first[i] ? fmtFreqPrecise(first[i].f, first[i].df) : '—');
+			});
+			if (first[0] && first[1]) {
+				var dfq = first[1].f - first[0].f;
+				curHtml += row('B−A', (dfq < 0 ? '−' : '') + fmtFreqPrecise(Math.abs(dfq), Math.min(first[0].df, first[1].df)));
+			}
+			curHtml += '</table><table class="harm"><tr class="hd"><td>' + (isDb ? (settings.scale === 'dbc' ? 'dBc' : 'dBV') : '') +
+				'</td><td>A</td><td>B</td><td>B−A dB</td></tr>' + trs + '</table>';
+		}
+		updateMeasurements(curHtml);
+
+		// hover readout (not while dragging a cursor)
+		if (hover && dragCur < 0 && traces.length && hover.x >= L && hover.x <= L + pw && hover.y >= T && hover.y <= T + ph) {
 			var hx = Math.round(hover.x) + 0.5;
 			g.strokeStyle = 'rgba(255,255,255,0.4)'; g.setLineDash([3, 3]);
 			line(g, hx, T, hx, T + ph); g.setLineDash([]);
-			var fa = Math.max(0, Finv(hover.x - 3)), fb = Finv(hover.x + 3), fh = Finv(hover.x);
 			var rows = [];
 			traces.slice().reverse().forEach(function (tr) {
-				var s = tr.s, kh = Math.floor(fh / s.df);
-				if (logF && kh >= 1 && X((kh + 1) * s.df) - X(kh * s.df) > 3) {
-					var pts = plotPoints(s, logF, fmin, fmax, X, pw), rv = curveAt(pts, fh);
-					if (!(rv > 0)) return;
-					var rf = refOf(tr), cv = scaleFn(rf)(rv);
-					if (isFinite(cv)) dot(g, hover.x, Y(Math.max(Math.min(cv, ymax), ymin)), tr.color);
-					if (!rows.length) rows.push('f = ' + fmtFreqPrecise(fh, s.df / 10));
-					rows.push({ t: (tr.main ? '' : tr.name + ': ') + fmtLevel(rv, rf), c: tr.color });
-					return;
-				}
-				var ka = Math.max(logF ? 1 : 0, Math.floor(fa / s.df)), kb = Math.min(s.rms.length - 1, Math.ceil(fb / s.df));
-				var kbest = -1;
-				for (var k = ka; k <= kb; k++) if (kbest < 0 || s.rms[k] > s.rms[kbest]) kbest = k;
-				if (kbest < 0) return;
-				var ref = refOf(tr), fv = scaleFn(ref)(s.rms[kbest]);
-				if (isFinite(fv)) dot(g, X(kbest * s.df), Y(Math.max(Math.min(fv, ymax), ymin)), tr.color);
-				if (!rows.length) rows.push('f = ' + fmtFreqPrecise(kbest * s.df, s.df));
-				rows.push({ t: (tr.main ? '' : tr.name + ': ') + fmtLevel(s.rms[kbest], ref), c: tr.color });
+				var sm = sampleAt(tr, hover.x);
+				if (!sm) return;
+				var ref = refOf(tr);
+				levelDot(sm, ref, tr.color);
+				if (!rows.length) rows.push('f = ' + fmtFreqPrecise(sm.f, sm.df));
+				rows.push({ t: (tr.main ? '' : tr.name + ': ') + fmtLevel(sm.r, ref), c: tr.color });
 			});
-			if (rows.length) {
-				g.font = '12px system-ui,"Segoe UI",sans-serif';
-				var bw = 0;
-				rows.forEach(function (r) { bw = Math.max(bw, g.measureText(r.t || r).width); });
-				bw += 20;
-				var bh = rows.length * 17 + 8;
+			readoutBox(g, rows, function (bw, bh) {
 				var bx = hover.x + 14, by = hover.y + 14;
 				if (bx + bw > L + pw) bx = hover.x - bw - 14;
 				if (by + bh > T + ph) by = hover.y - bh - 14;
-				g.fillStyle = 'rgba(30,30,30,0.92)';
-				g.fillRect(bx, by, bw, bh);
-				g.textAlign = 'left'; g.textBaseline = 'middle';
-				rows.forEach(function (r, i) {
-					var yy = by + 12 + i * 17;
-					if (typeof r === 'string') { g.fillStyle = '#ffffff'; g.fillText(r, bx + 8, yy); return; }
-					g.fillStyle = r.c; g.fillRect(bx + 8, yy - 1.5, 8, 3);
-					g.fillStyle = '#e0e0e0'; g.fillText(r.t, bx + 20, yy);
-				});
-			}
+				return [bx, by];
+			});
 		}
+	}
+
+	// a box of text rows: a string is a white heading, {t, c} a row with a swatch of color c.
+	// place(width, height) gives its top left corner.
+	function readoutBox(g, rows, place) {
+		if (!rows.length) return;
+		g.font = '12px system-ui,"Segoe UI",sans-serif';
+		var bw = 0;
+		rows.forEach(function (r) { bw = Math.max(bw, g.measureText(r.t || r).width); });
+		bw += 20;
+		var bh = rows.length * 17 + 8;
+		var p = place(bw, bh), bx = p[0], by = p[1];
+		g.fillStyle = 'rgba(30,30,30,0.92)';
+		g.fillRect(bx, by, bw, bh);
+		g.textAlign = 'left'; g.textBaseline = 'middle';
+		rows.forEach(function (r, i) {
+			var yy = by + 12 + i * 17;
+			if (typeof r === 'string') { g.fillStyle = '#ffffff'; g.fillText(r, bx + 8, yy); return; }
+			g.fillStyle = r.c; g.fillRect(bx + 8, yy - 1.5, 8, 3);
+			g.fillStyle = '#e0e0e0'; g.fillText(r.t, bx + 20, yy);
+		});
 	}
 
 	// points to draw a spectrum: its bins, and on a log axis, where two bins are more than 3

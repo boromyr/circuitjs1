@@ -92,6 +92,9 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     public int draggingPost;
     public SwitchElm heldSwitchElm;
     private boolean mouseDragging;
+    // the element moved by the current MODE_DRAG_SELECTED drag, if it is a single one
+    // (null if nothing has moved yet or several elements are being moved)
+    private CircuitElm draggedSingleElm;
     public int menuClientX, menuClientY;
     public int menuX, menuY;
     // elements grabbed at mouse-down for DragRow/DragColumn (element + which endpoint)
@@ -294,6 +297,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	    if (dragElm.creationFailed()) {
 		dragElm.delete();
 	    } else {
+		replaceCoveredWire(dragElm);
 		splitAt(dragElm.x, dragElm.y);
 		splitAt(dragElm.x2, dragElm.y2);
 		ui.elmList.addElement(dragElm);
@@ -498,19 +502,31 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	}
     	boolean allowed = true;
 
-    	// check if moves are allowed
+    	// check if moves are allowed.  A single 2-terminal element may land exactly on a
+    	// wire of its own length, since dropping it there replaces that wire.
+    	int selCount = 0;
+    	for (CircuitElm ce : ui.elmList)
+    	    if (ce.isSelected())
+    		selCount++;
     	for (CircuitElm ce : ui.elmList) {
-    	    if (ce.isSelected() && !ce.allowMove(dx, dy))
+    	    if (ce.isSelected() && !ce.allowMove(dx, dy) &&
+    		    !(selCount == 1 && onlyWiresAt(ce, dx, dy)))
     		allowed = false;
     	    if (!allowed)
     		break;
     	}
 
     	if (allowed) {
+    	    int movedCount = 0;
+    	    CircuitElm moved = null;
     	    for (CircuitElm ce : ui.elmList) {
-    		if (ce.isSelected())
+    		if (ce.isSelected()) {
     		    ce.move(dx, dy);
+    		    moved = ce;
+    		    movedCount++;
+    		}
     	    }
+    	    draggedSingleElm = (movedCount == 1) ? moved : null;
     	    // move connected routed wires' shared posts
     	    if (sim.sim.routedWireMap != null) {
     		for (CircuitElm ce : ui.elmList) {
@@ -640,6 +656,105 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	boolean a = splitWireAt(px, py);
 	boolean b = splitLeadsAt(px, py);
 	return a || b;
+    }
+
+    // true if (px, py) lies on the segment from (ax, ay) to (bx, by), endpoints included
+    static boolean pointOnSegment(int ax, int ay, int bx, int by, int px, int py) {
+	if ((long) (bx-ax)*(py-ay) != (long) (by-ay)*(px-ax))
+	    return false;
+	return px >= Math.min(ax, bx) && px <= Math.max(ax, bx) &&
+	       py >= Math.min(ay, by) && py <= Math.max(ay, by);
+    }
+
+    // true if ce is a 2-terminal non-wire element and everything that would share both of
+    // its endpoints after moving it by (dx, dy) is a straight wire (see replaceCoveredWire)
+    boolean onlyWiresAt(CircuitElm ce, int dx, int dy) {
+	if (ce instanceof WireElm || ce.getPostCount() != 2)
+	    return false;
+	int nx = ce.x+dx, ny = ce.y+dy, nx2 = ce.x2+dx, ny2 = ce.y2+dy;
+	for (CircuitElm e : ui.elmList) {
+	    if ((e.x == nx && e.y == ny && e.x2 == nx2 && e.y2 == ny2) ||
+		(e.x == nx2 && e.y == ny2 && e.x2 == nx && e.y2 == ny)) {
+		if (!(e instanceof WireElm) || e instanceof RoutedWireElm)
+		    return false;
+	    }
+	}
+	return true;
+    }
+
+    // If a 2-terminal element lies along a straight wire (both of its posts on the wire),
+    // cut the piece of wire it covers out of that wire, so the element ends up in series
+    // with the remaining pieces instead of being shorted by a wire lying under it.
+    // Returns true if a wire was changed.
+    boolean replaceCoveredWire(CircuitElm ce) {
+	if (ce instanceof WireElm || ce.getPostCount() != 2)
+	    return false;
+	Point p0 = ce.getPost(0);
+	Point p1 = ce.getPost(1);
+	if (p0.x == p1.x && p0.y == p1.y)
+	    return false;
+	for (int i = ui.elmList.size() - 1; i >= 0; i--) {
+	    CircuitElm e = ui.elmList.get(i);
+	    if (!(e instanceof WireElm) || e instanceof RoutedWireElm)
+		continue;
+	    if (!pointOnSegment(e.x, e.y, e.x2, e.y2, p0.x, p0.y) ||
+		!pointOnSegment(e.x, e.y, e.x2, e.y2, p1.x, p1.y))
+		continue;
+	    // the post nearer the wire's start keeps the start piece, the other the end piece
+	    Point near = p0, far = p1;
+	    if (Graphics.distanceSq(e.x, e.y, p1.x, p1.y) < Graphics.distanceSq(e.x, e.y, p0.x, p0.y)) {
+		near = p1;
+		far = p0;
+	    }
+	    if (far.x != e.x2 || far.y != e.y2) {
+		WireElm w = new WireElm(far.x, far.y);
+		w.drag(e.x2, e.y2);
+		ui.elmList.addElement(w);
+	    }
+	    if (near.x != e.x || near.y != e.y)
+		e.drag(near.x, near.y);
+	    else {
+		ui.elmList.removeElementAt(i);
+		e.delete();
+	    }
+	    return true;
+	}
+	return false;
+    }
+
+    // Connect an element that has just been moved onto wires: a 2-terminal element lying
+    // along a wire replaces the piece it covers, and a post dropped on the interior of a
+    // wire splits that wire there. Wires lying along a 2-terminal element's body are not
+    // split at its posts (that would short it); wires crossing it elsewhere are untouched.
+    // Returns true if the circuit changed.
+    boolean connectDroppedElm(CircuitElm ce) {
+	if (ce instanceof WireElm || ce instanceof GraphicElm)
+	    return false;
+	boolean changed = replaceCoveredWire(ce);
+	int n = ce.getPostCount();
+	Point a = (n == 2) ? ce.getPost(0) : null;
+	Point b = (n == 2) ? ce.getPost(1) : null;
+	for (int p = 0; p < n; p++) {
+	    Point pt = ce.getPost(p);
+	    for (int i = ui.elmList.size() - 1; i >= 0; i--) {
+		CircuitElm e = ui.elmList.get(i);
+		if (!(e instanceof WireElm) || e == ce)
+		    continue;
+		WireElm we = (WireElm) e;
+		if (!we.pointOnWireInterior(pt.x, pt.y))
+		    continue;
+		if (a != null && !(we instanceof RoutedWireElm) &&
+		    (long) (b.x-a.x)*(we.y-a.y) == (long) (b.y-a.y)*(we.x-a.x) &&
+		    (long) (b.x-a.x)*(we.y2-a.y) == (long) (b.y-a.y)*(we.x2-a.x))
+		    continue;
+		WireElm newWire = we.split(pt.x, pt.y);
+		if (newWire != null) {
+		    ui.elmList.addElement(newWire);
+		    changed = true;
+		}
+	    }
+	}
+	return changed;
     }
 
     void selectArea(int x, int y, boolean add) {
@@ -1161,6 +1276,7 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
 	initDragGridX = gx;
 	initDragGridY = gy;
 	dragging = true;
+	draggedSingleElm = null;
 
 	// capture elements for DragRow/DragColumn at mouse-down so we don't
 	// pick up new elements as we sweep over them
@@ -1256,6 +1372,16 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     	Scope.dragStartTime = -1;
     	Scope.endDragPlotY();
 
+    	// a single element dropped onto a wire gets connected into it.  The undo state
+    	// pushed at mouse-down (before the move) already covers this, so no extra push.
+    	if (tempMouseMode == MODE_DRAG_SELECTED && draggedSingleElm != null &&
+    		ui.elmList.contains(draggedSingleElm) && connectDroppedElm(draggedSingleElm)) {
+    	    sim.needAnalyze();
+    	    sim.undoManager.writeRecoveryToStorage();
+    	    sim.unsavedChanges = true;
+    	}
+    	draggedSingleElm = null;
+
     	tempMouseMode = mouseMode;
     	selectedArea = null;
     	dragging = false;
@@ -1283,6 +1409,8 @@ public class MouseManager implements MouseDownHandler, MouseMoveHandler, MouseUp
     		}
     		else {
     			// auto-split wires at the new element's endpoints before adding it
+    			// (cutting out any wire it lies along, which would short it)
+    			replaceCoveredWire(dragElm);
     			splitAt(dragElm.x, dragElm.y);
     			splitAt(dragElm.x2, dragElm.y2);
     			ui.elmList.addElement(dragElm);

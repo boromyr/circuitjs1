@@ -17,6 +17,7 @@
 	var STORE = 'bodePlot.';
 	var NPOINTS = 400;
 	var TRACE_COLORS = ['#2ecc71', '#e74c3c', '#b07cd8', '#1abc9c', '#f1c40f', '#95a5a6'];
+	var CURSORS = [{ key: 'curA', name: 'A', color: '#f5d142' }, { key: 'curB', name: 'B', color: '#3fd0e8' }];
 
 	var sim = null;
 	var win = null;
@@ -28,6 +29,8 @@
 	var error = null;       // error code from acSweep
 	var held = [];          // frozen traces for comparison
 	var hover = null;       // {x, y}
+	var geom = null;        // plot area and frequency axis of the last drawing, for the cursors
+	var dragCur = -1;       // index in CURSORS of the cursor being dragged
 	var interval = 400, lastSweepTime = 0;
 	// what the last sweep was made for: the circuit is only swept again when this changes,
 	// since finding the operating point runs every element and can disturb ones with memory
@@ -44,7 +47,10 @@
 		yMin: -60,
 		offset: 0,
 		source: '',
-		output: ''
+		output: '',
+		cursors: false,
+		curA: null,     // cursor frequencies (Hz), null = not placed yet
+		curB: null
 	};
 
 	// ------------------------------------------------------------------
@@ -60,6 +66,7 @@
 			clear: 'Clear held', clearTip: 'Remove the held traces', csv: 'Copy CSV',
 			csvTip: 'Copy the data (frequency, dB, phase) to the clipboard', none: '(none)',
 			freqAxis: 'Frequency (Hz)', magAxis: 'Magnitude (dB)', phaseAxis: 'Phase (°)',
+			cursors: 'Cursors', cursorsTip: 'Two vertical cursors: drag them (or click in the plot) to read two points and their difference',
 			current: 'current', trace: 'trace', copied: 'Data copied to the clipboard ({n} points).',
 			popup: 'Could not open the Bode plot window (popup blocked?).',
 			noSource: 'No voltage source: add one to use as the input.',
@@ -82,6 +89,7 @@
 			clear: 'Cancella fissate', clearTip: 'Rimuove le curve fissate', csv: 'Copia CSV',
 			csvTip: 'Copia i dati (frequenza, dB, fase) negli appunti', none: '(nessuno)',
 			freqAxis: 'Frequenza (Hz)', magAxis: 'Modulo (dB)', phaseAxis: 'Fase (°)',
+			cursors: 'Cursori', cursorsTip: 'Due cursori verticali: trascinali (o fai clic nel grafico) per leggere due punti e la loro differenza',
 			current: 'attuale', trace: 'curva', copied: 'Dati copiati negli appunti ({n} punti).',
 			popup: 'Impossibile aprire la finestra del diagramma di Bode (popup bloccato?).',
 			noSource: 'Nessun generatore di tensione: aggiungine uno come ingresso.',
@@ -198,6 +206,7 @@
 		'<div class="bar">' +
 		'<label><input type="checkbox" id="cbMag"> ' + S.mag + '</label>' +
 		'<label><input type="checkbox" id="cbPhase"> ' + S.phase + '</label>' +
+		'<label title="' + S.cursorsTip + '"><input type="checkbox" id="cbCur"> ' + S.cursors + '</label>' +
 		'<span class="sep"></span>' +
 		'<label><span class="lbl">' + S.input + '</span> <select id="selSrc"></select></label>' +
 		'<label><span class="lbl">' + S.output + '</span> <select id="selOut"></select></label>' +
@@ -253,7 +262,7 @@
 		var $ = function (id) { return d.getElementById(id); };
 		ui = {
 			doc: d, cv: $('cv'), wrap: $('wrap'), status: $('status'),
-			cbMag: $('cbMag'), cbPhase: $('cbPhase'), selSrc: $('selSrc'), selOut: $('selOut'),
+			cbMag: $('cbMag'), cbPhase: $('cbPhase'), cbCur: $('cbCur'), selSrc: $('selSrc'), selOut: $('selOut'),
 			selFmin: $('selFmin'), selFmax: $('selFmax'), selY: $('selY'), inOff: $('inOff'),
 			lbYc: $('lbYc'), inYmax: $('inYmax'), inYmin: $('inYmin'), inSpeed: $('inSpeed')
 		};
@@ -265,6 +274,7 @@
 		if (ui.selFmax.value === '') ui.selFmax.value = settings.fmax = 100000;
 		ui.cbMag.checked = settings.showMag;
 		ui.cbPhase.checked = settings.showPhase;
+		ui.cbCur.checked = settings.cursors;
 		ui.selY.value = settings.yRange;
 		if (ui.selY.value === '') ui.selY.value = settings.yRange = 'auto';
 		ui.inOff.value = settings.offset;
@@ -280,6 +290,7 @@
 		function changed(recompute) {
 			settings.showMag = ui.cbMag.checked;
 			settings.showPhase = ui.cbPhase.checked;
+			settings.cursors = ui.cbCur.checked;
 			settings.fmin = +ui.selFmin.value;
 			settings.fmax = +ui.selFmax.value;
 			settings.yRange = ui.selY.value;
@@ -295,7 +306,7 @@
 			saveSettings();
 			if (recompute) { lastSweepTime = 0; tick(); } else draw();
 		}
-		ui.cbMag.onchange = ui.cbPhase.onchange = ui.selY.onchange = function () { changed(false); };
+		ui.cbMag.onchange = ui.cbPhase.onchange = ui.cbCur.onchange = ui.selY.onchange = function () { changed(false); };
 		ui.inOff.oninput = ui.inYmax.oninput = ui.inYmin.oninput = function () { changed(false); };
 		ui.selFmin.onchange = ui.selFmax.onchange = ui.selSrc.onchange = ui.selOut.onchange = function () { changed(true); };
 		$('btHold').onclick = function () {
@@ -306,13 +317,68 @@
 		$('btClear').onclick = function () { held = []; draw(); };
 		$('btCsv').onclick = copyCsv;
 
-		ui.cv.onmousemove = function (ev) { hover = { x: ev.offsetX, y: ev.offsetY }; draw(); };
-		ui.cv.onmouseleave = function () { hover = null; draw(); };
+		hookCursors();
 		win.onresize = function () { draw(); saveGeom(); };
 		win.onbeforeunload = function () {
 			saveGeom();
 		};
 		draw();
+	}
+
+	// mouse on the plot: the hover readout, and dragging the cursors.  A press near a cursor
+	// grabs it; anywhere else in the plot it brings the nearest cursor there.
+	function hookCursors() {
+		var cv = ui.cv;
+		var inPlot = function (x, y) {
+			return geom && x >= geom.L - 8 && x <= geom.L + geom.pw + 8 && y >= geom.T && y <= geom.T + geom.ph;
+		};
+		cv.onpointerdown = function (ev) {
+			if (!settings.cursors || ev.button !== 0 || !inPlot(ev.offsetX, ev.offsetY)) return;
+			var i = cursorNear(ev.offsetX);
+			dragCur = i >= 0 ? i : nearestCursor(ev.offsetX);
+			if (i < 0) moveCursor(dragCur, ev.offsetX);
+			try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
+			ev.preventDefault();
+			draw();
+		};
+		cv.onpointermove = function (ev) {
+			hover = { x: ev.offsetX, y: ev.offsetY };
+			if (dragCur >= 0) moveCursor(dragCur, ev.offsetX);
+			cv.style.cursor = dragCur >= 0 || (settings.cursors && inPlot(ev.offsetX, ev.offsetY) &&
+				cursorNear(ev.offsetX) >= 0) ? 'ew-resize' : '';
+			draw();
+		};
+		cv.onpointerup = cv.onpointercancel = function (ev) {
+			if (dragCur < 0) return;
+			// the last move may not have been delivered before the release
+			if (ev.type === 'pointerup') moveCursor(dragCur, ev.offsetX);
+			dragCur = -1;
+			saveSettings();
+			draw();
+		};
+		cv.onpointerleave = function () { if (dragCur < 0) { hover = null; draw(); } };
+	}
+
+	// cursor i's frequency on the present axis (placed at a third and two thirds the first time)
+	function cursorFreq(i) {
+		var f = settings[CURSORS[i].key];
+		if (!num(f)) f = geom.Finv(geom.L + geom.pw * (i + 1) / 3);
+		return Math.min(Math.max(f, settings.fmin), settings.fmax);
+	}
+	function cursorNear(x) {
+		var best = -1, bd = 8;
+		for (var i = 0; i < CURSORS.length; i++) {
+			var d = Math.abs(geom.X(cursorFreq(i)) - x);
+			if (d <= bd) { best = i; bd = d; }
+		}
+		return best;
+	}
+	function nearestCursor(x) {
+		return Math.abs(geom.X(cursorFreq(0)) - x) <= Math.abs(geom.X(cursorFreq(1)) - x) ? 0 : 1;
+	}
+	function moveCursor(i, x) {
+		x = Math.min(Math.max(x, geom.L), geom.L + geom.pw);
+		settings[CURSORS[i].key] = geom.Finv(x);
 	}
 
 	function addOpt(sel, value, text) {
@@ -602,7 +668,7 @@
 		if (held.length) {
 			g.font = '12px system-ui,"Segoe UI",sans-serif';
 			g.textAlign = 'left'; g.textBaseline = 'middle';
-			var ly = T + 14, lx = L + 12;
+			var ly = T + (settings.cursors ? 30 : 14), lx = L + 12;  // below the cursor tags
 			traces.forEach(function (tr) {
 				g.fillStyle = tr.color; g.fillRect(lx, ly - 1.5, 16, 3);
 				g.fillStyle = '#e0e0e0'; g.fillText(tr.main ? S.current : tr.name, lx + 22, ly);
@@ -610,9 +676,62 @@
 			});
 		}
 
-		// hover readout
-		if (hover && result && hover.x >= L && hover.x <= L + pw && hover.y >= T && hover.y <= T + ph) {
-			var fh = Math.pow(10, lf0 + (hover.x - L) / pw * (lf1 - lf0));
+		// the two cursors: a line each, dots where they cross the traces, and a table with, for
+		// the current trace and every held one, the readings at A and B, their difference
+		// (B - A) and the slope between them
+		var Finv = function (x) { return Math.pow(10, lf0 + (x - L) / pw * (lf1 - lf0)); };
+		geom = { L: L, T: T, pw: pw, ph: ph, X: X, Finv: Finv };
+		var showDb = showMag || !showPh, curBox = null;
+		if (settings.cursors) {
+			var fcs = [cursorFreq(0), cursorFreq(1)];
+			CURSORS.forEach(function (c, i) {
+				var cx = Math.round(X(fcs[i])) + 0.5;
+				g.strokeStyle = c.color; g.lineWidth = i === dragCur ? 2 : 1;
+				line(g, cx, T, cx, T + ph);
+				g.lineWidth = 1;
+				// the tag stays inside the plot when the cursor is at an edge
+				var tx = Math.min(Math.max(cx, L + 7), L + pw - 7);
+				g.fillStyle = c.color; g.fillRect(tx - 7, T, 14, 15);
+				g.fillStyle = '#141414'; g.font = 'bold 11px system-ui,"Segoe UI",sans-serif';
+				g.textAlign = 'center'; g.textBaseline = 'middle';
+				g.fillText(c.name, tx, T + 8);
+			});
+			var sgn = function (v) { return v >= 0 ? '+' : ''; };
+			// fixed decimals, without a "-0.00" for tiny negative values
+			var fx = function (v, d) { var s = v.toFixed(d); return /^-0\.?0*$/.test(s) ? s.slice(1) : s; };
+			var val = function (db, deg) {
+				var s = [];
+				if (showDb) s.push(isFinite(db) ? fx(db, 2) + ' dB' : '—');
+				if (showPh) s.push(isFinite(deg) ? fx(deg, 1) + '°' : '—');
+				return s.join('  ');
+			};
+			var dec = Math.log10(fcs[1] / fcs[0]), dfq = fcs[1] - fcs[0];
+			var trows = [];
+			traces.slice().reverse().forEach(function (tr) {
+				var r = fcs.map(function (fc) { return { db: interp(tr.r.f, tr.r.db, fc) + off, ph: interp(tr.r.f, tr.r.ph, fc) }; });
+				r.forEach(function (p, i) {
+					var cx = Math.round(X(fcs[i])) + 0.5;
+					if (showMag && isFinite(p.db)) dot(g, cx, Y(p.db), tr.color);
+					if (showPh && isFinite(p.ph)) dot(g, cx, YP(p.ph), tr.main ? '#e67e22' : tr.color);
+				});
+				var ddb = r[1].db - r[0].db, dph = r[1].ph - r[0].ph;
+				var d = [];
+				if (showDb) d.push(isFinite(ddb) ? sgn(ddb) + fx(ddb, 2) + ' dB' : '—');
+				if (showPh) d.push(isFinite(dph) ? sgn(dph) + fx(dph, 1) + '°' : '—');
+				// the slope between them, as in "-20 dB/decade" of a first-order roll-off
+				var slope = showDb && isFinite(ddb) && Math.abs(dec) > 1e-3 ? (ddb / dec).toFixed(1) + ' dB/dec' : '';
+				trows.push({ c: tr.color, cells: [tr.main ? S.current : tr.name, val(r[0].db, r[0].ph), val(r[1].db, r[1].ph), d.join('  '), slope] });
+			});
+			if (trows.length) {
+				var head = [{ t: '' }, { t: 'A  ' + fmtFreq(fcs[0]), c: CURSORS[0].color }, { t: 'B  ' + fmtFreq(fcs[1]), c: CURSORS[1].color },
+					{ t: 'B−A  ' + (dfq < 0 ? '−' : '') + fmtFreq(Math.abs(dfq)), c: '#ffffff' }, { t: '' }];
+				curBox = tableBox(g, head, trows, L, T, pw, ph);
+			}
+		}
+
+		// hover readout (not while dragging a cursor), kept off the cursor table
+		if (hover && dragCur < 0 && result && hover.x >= L && hover.x <= L + pw && hover.y >= T && hover.y <= T + ph) {
+			var fh = Finv(hover.x);
 			var hx = Math.round(hover.x) + 0.5;
 			g.strokeStyle = 'rgba(255,255,255,0.4)'; g.setLineDash([3, 3]);
 			line(g, hx, T, hx, T + ph); g.setLineDash([]);
@@ -628,24 +747,76 @@
 				if (showPh) s += (showMag ? '  ' : '') + vph.toFixed(1) + '°';
 				rows.push({ t: s, c: tr.color });
 			});
-			g.font = '12px system-ui,"Segoe UI",sans-serif';
-			var bw = 0;
-			rows.forEach(function (r) { bw = Math.max(bw, g.measureText(r.t || r).width); });
-			bw += 20;
-			var bh = rows.length * 17 + 8;
-			var bx = hover.x + 14, by = hover.y + 14;
-			if (bx + bw > L + pw) bx = hover.x - bw - 14;
-			if (by + bh > T + ph) by = hover.y - bh - 14;
-			g.fillStyle = 'rgba(30,30,30,0.92)';
-			g.fillRect(bx, by, bw, bh);
-			g.textAlign = 'left'; g.textBaseline = 'middle';
-			rows.forEach(function (r, i) {
-				var yy = by + 12 + i * 17;
-				if (typeof r === 'string') { g.fillStyle = '#ffffff'; g.fillText(r, bx + 8, yy); return; }
-				g.fillStyle = r.c; g.fillRect(bx + 8, yy - 1.5, 8, 3);
-				g.fillStyle = '#e0e0e0'; g.fillText(r.t, bx + 20, yy);
+			readoutBox(g, rows, function (bw, bh) {
+				var bx = hover.x + 14, by = hover.y + 14;
+				if (bx + bw > L + pw) bx = hover.x - bw - 14;
+				if (by + bh > T + ph) by = hover.y - bh - 14;
+				if (curBox && bx < curBox.x + curBox.w && bx + bw > curBox.x && by < curBox.y + curBox.h && by + bh > curBox.y)
+					by = curBox.y + curBox.h + 6;
+				return [bx, by];
 			});
 		}
+	}
+
+	// the cursor table at the top right of the plot (left if it does not fit): a heading row of
+	// cells {t, c} and rows {c: swatch color, cells: [name, ...]}, columns aligned.
+	// Returns its rectangle.
+	function tableBox(g, head, rows, L, T, pw, ph) {
+		g.font = '12px system-ui,"Segoe UI",sans-serif';
+		var n = head.length, wid = [];
+		for (var j = 0; j < n; j++) {
+			wid[j] = g.measureText(head[j].t).width;
+			rows.forEach(function (r) { wid[j] = Math.max(wid[j], g.measureText(r.cells[j]).width); });
+		}
+		var gap = 16, bw = 20 + 8, bh = (rows.length + 1) * 17 + 8;
+		wid.forEach(function (w, j) { bw += w + (j && w ? gap : 0); });
+		var bx = L + pw - bw - 8, by = T + 22;
+		if (bx < L + 8) bx = L + 8;
+		g.fillStyle = 'rgba(30,30,30,0.92)';
+		g.fillRect(bx, by, bw, bh);
+		g.textBaseline = 'middle';
+		var cell = function (t, j, x, y, color) {
+			g.fillStyle = color;
+			// the name column is left aligned, the numbers right aligned
+			if (j === 0) { g.textAlign = 'left'; g.fillText(t, x, y); }
+			else { g.textAlign = 'right'; g.fillText(t, x + wid[j], y); }
+		};
+		var drawRow = function (cells, y, colorOf) {
+			var x = bx + 20;
+			for (var j = 0; j < n; j++) {
+				if (j && wid[j]) x += gap;
+				cell(cells[j], j, x, y, colorOf(j));
+				x += wid[j];
+			}
+		};
+		drawRow(head.map(function (h) { return h.t; }), by + 12, function (j) { return head[j].c || '#ffffff'; });
+		rows.forEach(function (r, i) {
+			var y = by + 12 + (i + 1) * 17;
+			g.fillStyle = r.c; g.fillRect(bx + 8, y - 1.5, 8, 3);
+			drawRow(r.cells, y, function (j) { return j === 0 || j === n - 1 ? '#9a9a9a' : '#e0e0e0'; });
+		});
+		return { x: bx, y: by, w: bw, h: bh };
+	}
+
+	// a box of text rows: a string is a white heading, {t, c} a row with a swatch of color c.
+	// place(width, height) gives its top left corner.
+	function readoutBox(g, rows, place) {
+		if (!rows.length) return;
+		g.font = '12px system-ui,"Segoe UI",sans-serif';
+		var bw = 0;
+		rows.forEach(function (r) { bw = Math.max(bw, g.measureText(r.t || r).width); });
+		bw += 20;
+		var bh = rows.length * 17 + 8;
+		var p = place(bw, bh), bx = p[0], by = p[1];
+		g.fillStyle = 'rgba(30,30,30,0.92)';
+		g.fillRect(bx, by, bw, bh);
+		g.textAlign = 'left'; g.textBaseline = 'middle';
+		rows.forEach(function (r, i) {
+			var yy = by + 12 + i * 17;
+			if (typeof r === 'string') { g.fillStyle = '#ffffff'; g.fillText(r, bx + 8, yy); return; }
+			g.fillStyle = r.c; g.fillRect(bx + 8, yy - 1.5, 8, 3);
+			g.fillStyle = '#e0e0e0'; g.fillText(r.t, bx + 20, yy);
+		});
 	}
 
 	function line(g, x0, y0, x1, y1) { g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); }
