@@ -37,14 +37,15 @@ export class SubcircuitBar {
     constructor() {
         this.element = document.createElement('div');
         this.element.className = 'subcircuitBar';
+        // colors come from style.css / dark-theme.css
         const style = this.element.style;
-        style.background = 'rgba(248,248,248,0.85)';
         style.position = 'absolute';
         // no z-index so menu popups (added later in DOM) stack above us
         style.padding = '4px';
         style.paddingLeft = '8px';
         style.paddingRight = '8px';
-        style.borderBottom = '1px solid #ccc';
+        style.borderBottomWidth = '1px';
+        style.borderBottomStyle = 'solid';
         style.pointerEvents = 'auto';
         style.boxSizing = 'border-box';
         style.whiteSpace = 'nowrap';
@@ -114,8 +115,8 @@ export class SubcircuitBar {
     }
 
     private styleLabel(el: HTMLElement): void {
+        el.classList.add('cirjs-toolbar-label');
         el.style.fontSize = '14px';
-        el.style.color = '#333';
         el.style.paddingRight = '10px';
     }
 

@@ -73,7 +73,8 @@ function copyPublicAssets(): Plugin {
       }
       fs.cpSync(path.join(publicDir, 'circuitjs', 'font'), path.join(nested, 'font'), { recursive: true })
       fs.cpSync(path.join(publicDir, 'setuplist.txt'), path.join(nested, 'setuplist.txt'))
-      for (const page of ['iframe.html', 'jsinterface.html', 'circuitjs/about.html']) {
+      // (dark-theme.css is also bundled with the app, but these pages link it as a file)
+      for (const page of ['iframe.html', 'jsinterface.html', 'circuitjs/about.html', 'dark-theme.css']) {
         fs.cpSync(path.join(tsRoot, page), path.join(tsRoot, 'dist', page))
       }
     }

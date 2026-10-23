@@ -199,8 +199,19 @@ export class ScrollValuePopup {
     // us - GWT computed it from the legacy, non-standard wheelDelta property, whose ratio to
     // deltaY turned out not to be the fixed cross-browser constant it's classically assumed
     // to be. 0.12 is an empirically-chosen scale-down factor, not a derived conversion.
+    // Not rounded: the many small steps of a touchpad (a few pixels each) came out as 0
+    // and were lost.  Lines and pages (Firefox, some mice) are converted to the same
+    // units, a mouse notch (3 lines) being WHEEL_NOTCH.
+    static readonly WHEEL_NOTCH = 12;
+
     static normalizeWheelDelta(e: WheelEvent): number {
-        return Math.round(e.deltaY * 0.12) || 0;
+        if (!e.deltaY)
+            return 0;
+        if (e.deltaMode === 1)          // lines
+            return e.deltaY * ScrollValuePopup.WHEEL_NOTCH / 3;
+        if (e.deltaMode === 2)          // pages
+            return e.deltaY * ScrollValuePopup.WHEEL_NOTCH * 10;
+        return e.deltaY * 0.12;         // pixels
     }
 
     getSelIdx(): number {

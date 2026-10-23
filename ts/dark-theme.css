@@ -1,0 +1,289 @@
+/*
+ * Dark theme for CircuitJS1.
+ * Linked by circuitjs.html after style.css (Vite bundles the two together, this one
+ * last, so its rules win over the light defaults of style.css with the same
+ * selectors); iframe.html and about.html link the copy the build puts next to them.
+ *
+ * The circuit-drawing canvas itself is already dark by default (CircuitJS draws a
+ * black background unless "White Background" is checked in the Options menu), so
+ * it is left alone here.  Dialogs, buttons and form fields are native elements:
+ * color-scheme: dark gives them the browser's dark look, adjusted below.
+ */
+
+:root {
+	/* dark native controls (checkboxes, selects, color pickers) in the Windows 11 accent */
+	color-scheme: dark;
+	accent-color: #60cdff;
+
+	--dark-bg: #1e1e1e;
+	--dark-bg-alt: #2a2a2a;
+	--dark-bg-hover: #3a3a3a;
+	--dark-border: #4a4a4a;
+	--dark-text: #e0e0e0;
+	--dark-text-dim: #9a9a9a;
+	--dark-accent: #3a6ea5;
+
+	/* colors read by the sliders (Scrollbar in UIManager.ts) when drawing (Windows 11 dark slider) */
+	--cirjs-scrollbar-fg: #c8c8c8;
+	--cirjs-scrollbar-disabled: #505050;
+	--cirjs-scrollbar-track: #9a9a9a;
+	--cirjs-scrollbar-bar: #60cdff;
+	--cirjs-scrollbar-thumb: #454545;
+	--cirjs-scrollbar-thumb-border: #5a5a5a;
+}
+
+html, body {
+	background: var(--dark-bg);
+	color: var(--dark-text);
+}
+
+a, a:visited {
+	color: #6cb4ff;
+}
+
+/* form controls */
+input, select, textarea, button {
+	background-color: var(--dark-bg-alt);
+	color: var(--dark-text);
+	border: 1px solid var(--dark-border);
+	border-radius: 4px;
+}
+button:hover:not(:disabled) {
+	background-color: var(--dark-bg-hover);
+}
+button:disabled, input:disabled, select:disabled, textarea:disabled {
+	color: var(--dark-text-dim);
+}
+/* checkboxes and radio buttons keep their native (dark, accent-colored) look */
+input[type="checkbox"], input[type="radio"], input[type="range"], input[type="color"] {
+	background-color: initial;
+	border: initial;
+	border-radius: initial;
+}
+/* focused field: accent underline as in Windows 11, instead of the thick white ring */
+input:focus, textarea:focus, select:focus {
+	outline: none;
+	border-color: var(--dark-border);
+	box-shadow: inset 0 -2px 0 var(--cirjs-scrollbar-bar);
+}
+input[type="checkbox"]:focus, input[type="radio"]:focus {
+	box-shadow: none;
+}
+
+table {
+	color: inherit;
+}
+
+/*
+ * The circuit canvas takes the keyboard focus when clicked, and with
+ * color-scheme: dark Chromium draws its focus ring as a light frame around it.
+ */
+canvas:focus, canvas:focus-visible {
+	outline: none;
+}
+
+/* ---- dialogs (Dialog.ts), framed like Windows 11 windows ---- */
+
+dialog.circuitDialog {
+	background: var(--dark-bg-alt);
+	color: var(--dark-text);
+	border: 1px solid #454545;
+	border-radius: 8px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+dialog.circuitDialog::backdrop {
+	background: rgba(0, 0, 0, 0.5);
+}
+
+/* ---- menu bar and menus (Menus.ts) ---- */
+
+.gwt-MenuBar-horizontal {
+	background: #2d2d2d;
+	border-color: var(--dark-border);
+}
+td.gwt-MenuItem {
+	color: var(--dark-text);
+}
+td.gwt-MenuItem.open {
+	background: var(--dark-accent);
+	color: #fff;
+	border-radius: 4px;
+}
+@media (hover: hover) {
+	td.gwt-MenuItem:hover {
+		background: var(--dark-accent);
+		color: #fff;
+		border-radius: 4px;
+	}
+}
+
+/*
+ * Menu popups framed like Windows 11 flyouts: without an edge or shadow a popup
+ * over the black circuit canvas blends into it, so the canvas visible next to it
+ * looks like part of the menu.
+ */
+.menuDropdown, .elmContextMenu {
+	background: #2d2d2d;
+	color: var(--dark-text);
+	border: 1px solid #454545;
+	border-radius: 7px;
+	box-shadow: 0 8px 16px rgba(0, 0, 0, 0.55);
+	padding: 3px;
+	font-weight: normal;
+}
+/* rounded highlight */
+.menuItem {
+	border-radius: 4px;
+}
+.menuItem:hover, .hasSubmenu.open {
+	background: var(--dark-accent);
+	color: #fff;
+}
+@media (hover: hover) {
+	.hasSubmenu:hover {
+		background: var(--dark-accent);
+		color: #fff;
+	}
+}
+.menuItem:hover .shortcutHint, .hasSubmenu.open .shortcutHint {
+	color: #dcdcdc;
+}
+.menuItem.menuItemDisabled,
+.menuItem.menuItemDisabled:hover {
+	color: #6a6a6a;
+	background: none;
+}
+.menuSeparator {
+	background: var(--dark-border);
+}
+.shortcutHint {
+	color: var(--dark-text-dim);
+}
+.menuSubhead {
+	color: var(--dark-text-dim);
+}
+
+/* ---- popups and side panel ---- */
+
+.scrollValuePopup {
+	background: var(--dark-bg-alt);
+	color: var(--dark-text);
+	border: 1px solid #454545;
+	border-radius: 8px;
+	box-shadow: 0 8px 16px rgba(0, 0, 0, 0.55);
+}
+.scrollValuePopup-label.selected {
+	border-top-color: var(--dark-border);
+	border-bottom-color: var(--dark-border);
+}
+.scrollValuePopup-label.off1 {
+	color: var(--dark-text-dim);
+}
+.scrollValuePopup-label.off2 {
+	color: #7a7a7a;
+}
+
+.disabled {
+	color: #6a6a6a;
+}
+
+.topButton {
+	background-color: #3a3a3a;
+	color: var(--dark-text);
+	border-color: var(--dark-border);
+	border-bottom-color: #222;
+}
+.topButton:hover {
+	background-color: #454545;
+}
+
+.chbut {
+	background: #3a3a3a;
+	border-color: var(--dark-border);
+}
+.chbut-black {
+	color: var(--dark-text);
+}
+
+/* mobile side panel tab and panel */
+@media only screen and (max-width: 600px) {
+	.triggerLabel, .verticalPanel {
+		background: var(--dark-bg);
+	}
+}
+
+/* icon toolbar (Toolbar.ts) and subcircuit bar (SubcircuitBar.ts), defaults in style.css */
+.cirjs-toolbar {
+	background-color: #2d2d2d;
+	border-color: var(--dark-border);
+}
+.cirjs-toolbar-button, .cirjs-toolbar-variant, .cirjs-toolbar-label {
+	color: var(--dark-text);
+}
+@media (hover: hover) {
+	.cirjs-toolbar-button:hover {
+		color: #4da3ff;
+	}
+}
+.cirjs-toolbar-button-active {
+	color: #4da3ff;
+	background-color: #2a3f52;
+}
+.palette-container {
+	background-color: var(--dark-bg-alt);
+	border-color: var(--dark-border);
+}
+.subcircuitBar {
+	background: rgba(45, 45, 45, 0.85);
+	border-bottom-color: var(--dark-border);
+}
+
+/* ---- command palette (CommandPalette.ts) ---- */
+
+.command-palette {
+	background: var(--dark-bg-alt);
+	border-color: #454545;
+	border-radius: 8px;
+	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+.command-palette-input, .command-palette-input:focus {
+	background: transparent;
+	color: var(--dark-text);
+	border: none;
+	border-bottom: 1px solid var(--dark-border);
+	border-radius: 0;
+	box-shadow: none;
+}
+.command-palette-section-label {
+	color: var(--dark-text-dim);
+}
+.command-palette-item {
+	color: var(--dark-text);
+}
+.command-palette-item-selected {
+	background: var(--dark-accent);
+	color: #fff;
+}
+.command-palette-item-hint {
+	color: var(--dark-text-dim);
+}
+
+/* ---- scrollbars (Chromium/Electron) ---- */
+
+::-webkit-scrollbar {
+	width: 12px;
+	height: 12px;
+}
+::-webkit-scrollbar-track {
+	background: var(--dark-bg);
+}
+::-webkit-scrollbar-thumb {
+	background: var(--dark-border);
+	border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: #5a5a5a;
+}
+::-webkit-scrollbar-corner {
+	background: var(--dark-bg);
+}

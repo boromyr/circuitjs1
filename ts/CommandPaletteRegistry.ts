@@ -200,6 +200,14 @@ export class CommandPaletteRegistry {
         CommandPaletteRegistry.addToggle("options:smallgrid", "Small Grid", "Options", "grid snap", {
             execute: () => { smallGrid.toggle(); app.setGrid(); }
         });
+        const showGrid = m.showGridCheckItem;
+        CommandPaletteRegistry.addToggle("options:showgrid", "Show Grid", "Options", "grid dots visible", {
+            execute: () => { showGrid.toggle(); app.repaint(); }
+        });
+        const gridLines = m.gridLinesCheckItem;
+        CommandPaletteRegistry.addToggle("options:gridlines", "Grid Lines", "Options", "grid lines", {
+            execute: () => { gridLines.toggle(); app.repaint(); }
+        });
         const toolbar = m.toolbarCheckItem;
         CommandPaletteRegistry.addToggle("options:toolbar", "Toolbar", "Options", "toolbar show hide", {
             execute: () => { toolbar.toggle(); app.setToolbar(); }

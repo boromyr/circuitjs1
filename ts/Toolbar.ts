@@ -37,13 +37,13 @@ export class Toolbar {
     private globalPopupCloserInstalled = false;
 
     constructor() {
+        // colors come from style.css / dark-theme.css
         this.element = document.createElement('div');
+        this.element.className = 'cirjs-toolbar';
         const style = this.element.style;
         style.padding = '2px';
-        style.backgroundColor = '#f8f8f8';
         style.borderWidth = '1px';
         style.borderStyle = 'solid';
-        style.borderColor = '#ccc';
         style.display = 'flex';
         style.alignItems = 'center';
         style.flexWrap = 'nowrap';
@@ -115,10 +115,10 @@ export class Toolbar {
             iconLabel.classList.add("cirjsicon-" + iconClass);
         iconLabel.title = Locale.LS(tooltip);
 
-        // Style the icon button
+        // Style the icon button (color and hover color come from CSS)
+        iconLabel.classList.add('cirjs-toolbar-button');
         const style = iconLabel.style;
         style.fontSize = '24px';
-        style.color = '#333';
         style.padding = '1px';
         style.marginRight = '5px';
         style.cursor = 'pointer';
@@ -126,14 +126,8 @@ export class Toolbar {
             style.paddingTop = '5px';
         style.touchAction = 'none';
 
-        // Add hover effect for the button
-        iconLabel.addEventListener('mouseover', () => iconLabel.style.color = '#007bff');
-        iconLabel.addEventListener('mouseout', () => iconLabel.style.color = '#333');
-
         // Add a click handler to perform the action
         iconLabel.addEventListener('click', () => {
-            // un-highlight
-            iconLabel.style.color = '#333';
             if (iconLabel === this.activeButton) {
                 new MyCommand("main", "Select").execute();
                 this.activeButton = null;
@@ -207,15 +201,12 @@ export class Toolbar {
             // so re-create it ourselves when the touch didn't turn into a drag.
             if (!moved)
                 el.dispatchEvent(new MouseEvent('click', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true }));
-            // there's no touch equivalent of a real mouseout, so the hover highlight
-            // this element's mouseover handler applied (on touchstart, above) would
-            // otherwise be left stuck on -- just clear it directly
-            el.style.color = '#333';
+            // (the hover color is a CSS :hover only on devices with a real hover, see
+            // style.css, so it can't be left stuck on by the touch)
         }, { passive: false });
         el.addEventListener('touchcancel', (e: TouchEvent) => {
             const t = e.changedTouches[0];
             document.dispatchEvent(new MouseEvent('mouseup', { clientX: t.clientX, clientY: t.clientY, bubbles: true, cancelable: true }));
-            el.style.color = '#333';
         }, { passive: true });
     }
 
@@ -288,12 +279,11 @@ export class Toolbar {
         paletteContainer.className = 'palette-container';
 
         // Apply CSS styles for positioning and visibility
+        paletteContainer.classList.add('palette-container');
         const paletteStyle = paletteContainer.style;
         paletteStyle.position = 'absolute';
         paletteStyle.zIndex = '1000';
-        paletteStyle.backgroundColor = '#ffffff';
         paletteStyle.borderWidth = '1px';
-        paletteStyle.borderColor = '#ccc';
         paletteStyle.borderStyle = 'solid';
         paletteStyle.padding = '5px';
         paletteStyle.display = 'none';
@@ -306,8 +296,8 @@ export class Toolbar {
             variantButton.title = app.getLabelTextForClass(info[i + 1]) ?? info[i + 1];
 
             // Style the variant button
+            variantButton.classList.add('cirjs-toolbar-variant');
             const variantStyle = variantButton.style;
-            variantStyle.color = '#333';
             //variantStyle.padding = '5px';
             variantStyle.cursor = 'pointer';
             variantStyle.touchAction = 'none';
@@ -389,24 +379,21 @@ export class Toolbar {
     }
 
     private styleModeLabel(el: HTMLElement): void {
+        el.classList.add('cirjs-toolbar-label');
         el.style.fontSize = '16px';
-        el.style.color = '#333';
         el.style.paddingRight = '10px';
         el.style.whiteSpace = 'nowrap';
     }
 
     highlightButton(key: string): void {
         // Deactivate the currently active button
-        if (this.activeButton !== null) {
-            this.activeButton.style.color = '#333';  // Reset color
-            this.activeButton.style.backgroundColor = '';
-        }
+        if (this.activeButton !== null)
+            this.activeButton.classList.remove('cirjs-toolbar-button-active');
 
         // Activate the new button
         const newActiveButton = this.highlightableButtons.get(key) ?? null;
         if (newActiveButton !== null) {
-            newActiveButton.style.color = '#007bff';  // Active color
-            newActiveButton.style.backgroundColor = '#e6f7ff';
+            newActiveButton.classList.add('cirjs-toolbar-button-active');
             this.activeButton = newActiveButton;
         }
     }
