@@ -286,8 +286,11 @@ export class CirSim {
             this.menus.getSetupList(false);
             this.loader.readCircuit(this.startCircuitText);
             const electronFileName = CirSim.getElectronStartCircuitFileName();
-            if (electronFileName != null)
+            if (electronFileName != null) {
                 this.setCircuitTitle(electronFileName);
+                // opened from a file (command line): Save writes back to it
+                this.allowSave(true);
+            }
             this.unsavedChanges = false;
         } else {
             if (this.stopMessage == null && this.startCircuitLink != null) {
@@ -300,6 +303,10 @@ export class CirSim {
                 if (this.stopMessage == null && this.startCircuit != null) {
                     this.menus.getSetupList(false);
                     this.menus.readSetupFile(this.startCircuit, this.startLabel);
+                } else if (this.stopMessage == null && this.menus.reopenLastCheckItem.getState() &&
+                           (!CirSim.isElectron() || qp.getValue("restoreLast") != null) && this.hasLastSession()) {
+                    // the default circuit only if the last session can't be restored
+                    this.menus.getSetupList(!this.restoreLastSession());
                 } else
                     this.menus.getSetupList(true);
             }
@@ -511,6 +518,67 @@ export class CirSim {
     }
 
     setCircuitTitle(s: string | null): void { this.ui.setCircuitTitle(s); }
+
+    // Options > Reopen Last Circuit at Startup: the circuit as it was when the app was closed,
+    // and in Electron the file it belongs to.  That file is opened again if the circuit had no
+    // unsaved changes; otherwise the changed circuit comes back, still saved to the file.
+    saveLastSession(): void {
+        const file = (CirSim.isElectron() && this.menus.saveFileItem.isEnabled()) ?
+            ((window as any).getCurrentFile?.() ?? null) : null;
+        try {
+            localStorage.setItem("lastSession", JSON.stringify({ text: this.dumpCircuit(), file: file,
+                title: this.ui.circuitTitle, unsaved: this.isModified() }));
+        } catch (e) {
+            // too big for the browser storage: start without it rather than with an old one
+            try { localStorage.removeItem("lastSession"); } catch (e2) {}
+        }
+    }
+
+    hasLastSession(): boolean {
+        try {
+            return localStorage.getItem("lastSession") != null;
+        } catch (e) {
+            return false;
+        }
+    }
+
+    // false if there was nothing to restore
+    restoreLastSession(): boolean {
+        try {
+            const s = JSON.parse(localStorage.getItem("lastSession")!);
+            const file: string | null = s.file ?? null, title: string | null = s.title ?? null;
+            const unsaved = s.unsaved === true;
+            if (file != null && CirSim.isElectron() && (window as any).fileExists?.(file)) {
+                if (!unsaved) {
+                    this.commands.openRecentFile(file, false);
+                    return true;
+                }
+                (window as any).setCurrentFile?.(file);
+                this.readCircuit(s.text);
+                this.allowSave(true);
+            } else {
+                if (typeof s.text != "string")
+                    return false;
+                this.readCircuit(s.text);
+                this.allowSave(false);
+            }
+            this.setCircuitTitle(title);
+            ExportAsLocalFileDialog.setLastFileName(title);
+            this.unsavedChanges = unsaved;
+            if (unsaved) {
+                // not the saved circuit: no savedDump, so isModified() stays true
+                this.savedDumpPending = false;
+                this.savedDump = null;
+            }
+            return true;
+        } catch (e) {
+            // a session that can't be loaded must not stop every start: forget it
+            CirSim.console("can't restore last session: " + e);
+            try { localStorage.removeItem("lastSession"); } catch (e2) {}
+            this.readCircuit("");
+            return false;
+        }
+    }
 
     clearCircuit(): void { this.loader.clearCircuit(); }
     readCircuit(s: string): void { this.loader.readCircuit(s); }

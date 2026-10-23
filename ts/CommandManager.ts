@@ -671,12 +671,15 @@ export class CommandManager {
         app.setCircuitTitle(s);
         app.allowSave(true);
         app.savedFlag = true;
+        // saved: the session (Options > Reopen Last Circuit at Startup) reopens the file
+        app.unsavedChanges = false;
         app.repaint();
     }
 
     static electronSaveCallback(): void {
         const app = CirSim.theApp;
         app.savedFlag = true;
+        app.unsavedChanges = false;
         app.repaint();
     }
 
@@ -697,15 +700,35 @@ export class CommandManager {
         CommandManager.electronSaveCallback();
     }
 
-    static electronOpenFileCallback(text: string, name: string): void {
+    // prevFile: the current file before this one was read (preload.js makes the file read
+    // the current one), kept when it was a subcircuit library, so Save doesn't overwrite it
+    static electronOpenFileCallback(text: string, name: string, prevFile: string | null): void {
         const app = CirSim.theApp;
-        (window as any).LoadFile?.doLoadCallback(text, name);
-        app.allowSave(true);
+        if (app.ui.loadCircuitFile(text, name))
+            app.allowSave(true);
+        else
+            (window as any).setCurrentFile?.(prevFile);
     }
 
     static electronOpenFile(): void {
+        const prevFile = (window as any).getCurrentFile?.() ?? null;
         (window as any).openFile?.((text: string, name: string) => {
-            CommandManager.electronOpenFileCallback(text, name);
+            CommandManager.electronOpenFileCallback(text, name, prevFile);
+        });
+    }
+
+    // File > Open Recent (a file that is gone is dropped from the list by preload.js), and
+    // the file reopened at startup (Options > Reopen Last Circuit at Startup), without undo
+    openRecentFile(path: string, undo: boolean = true): void {
+        if (undo)
+            this.app.undoManager?.pushUndo();
+        CommandManager.electronOpenRecentFile(path);
+    }
+
+    static electronOpenRecentFile(path: string): void {
+        const prevFile = (window as any).getCurrentFile?.() ?? null;
+        (window as any).openRecentFile?.(path, (text: string, name: string) => {
+            CommandManager.electronOpenFileCallback(text, name, prevFile);
         });
     }
 

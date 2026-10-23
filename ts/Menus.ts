@@ -89,6 +89,10 @@ function anyMenuOpen(): boolean {
     return document.querySelector('.gwt-MenuItem.open, .topMenuItem.open') !== null;
 }
 
+function escapeHtml(s: string): string {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 // Build "<i class='cirjsicon-X'></i>&nbsp;Label" HTML for icon menu items.
 function iconHtml(icon: string, text: string): string {
     const ls = Locale.LS(text);
@@ -114,6 +118,11 @@ class Menu {
 
     // Add a simple command item, returns the <li> for optional post-setup.
     addCommand(html: string, menuName: string, cmdName: string): HTMLLIElement {
+        return this.addAction(html, () => this.app.commands.menuPerformed(menuName, cmdName));
+    }
+
+    // Add an item that runs the given function.
+    addAction(html: string, action: () => void): HTMLLIElement {
         const li = this.makeLi(html);
         // Without this, the tap's touchstart bubbles to the document-level "tap elsewhere
         // closes everything" listener (see init()) before this item's own click fires,
@@ -125,7 +134,7 @@ class Menu {
             if (li.classList.contains('menuItemDisabled')) return;
             e.stopPropagation();
             closeAllMenus();
-            this.app.commands.menuPerformed(menuName, cmdName);
+            action();
         });
         this.ul.appendChild(li);
         return li;
@@ -283,6 +292,10 @@ export class Menus {
     mouseWheelEditCheckItem  = new CheckItem(true);
     toolbarCheckItem         = new CheckItem(true);
     showPropsOnCreateCheckItem = new CheckItem(true);
+    reopenLastCheckItem      = new CheckItem();
+
+    // File > Open Recent, only in the Electron app
+    recentMenu: Menu | null = null;
 
     menuBar: HTMLElement = document.createElement('nav');
     // right-click context popup — same Draw menu content, built separately
@@ -349,6 +362,17 @@ export class Menus {
         fileMenu.addMenuItem(this.importFromLocalFileItem,
             shortcutHtml("folder", "Open File...", Locale.LS(ck + "O")), "file", "importfromlocalfile");
         this.importFromLocalFileItem.setEnabled(typeof FileReader !== 'undefined');
+        if (this.isElectron()) {
+            // the last 10 files opened, listed by the Electron app (preload.js)
+            const recentMenu = this.recentMenu = new Menu(this.app);
+            const li = fileMenu.addSubmenu(iconHtml("folder", "Open Recent"), recentMenu);
+            // rebuilt each time it opens: other windows can open files too
+            li.addEventListener('mouseenter', () => this.refreshRecentFiles());
+            li.addEventListener('touchstart', e => {
+                if (!recentMenu.ul.contains(e.target as Node)) this.refreshRecentFiles();
+            }, { passive: true });
+            this.refreshRecentFiles();
+        }
 
         fileMenu.addMenuItem(this.importFromTextItem,
             iconHtml("doc-text", "Import From Text..."), "file", "importfromtext");
@@ -454,6 +478,9 @@ export class Menus {
         optMenu.addCheckItem(this.mouseWheelEditCheckItem, "Edit Values With Mouse Wheel");
         this.mouseWheelEditCheckItem.setCommand({ execute: () =>
             this.app.ui?.setOptionInStorage("mouseWheelEdit", this.mouseWheelEditCheckItem.getState()) });
+        optMenu.addCheckItem(this.reopenLastCheckItem, "Reopen Last Circuit at Startup");
+        this.reopenLastCheckItem.setCommand({ execute: () =>
+            this.app.ui?.setOptionInStorage("reopenLast", this.reopenLastCheckItem.getState()) });
         optMenu.addCommand(subheadHtml + Locale.LS("Shortcuts..."),    "options", "shortcuts");
         optMenu.addMenuItem(this.optionsItem, subheadHtml + Locale.LS("Other Options..."), "options", "other");
         if (this.isElectron())
@@ -711,6 +738,29 @@ export class Menus {
     }
 
     isElectron(): boolean { return (CirSim as any).isElectron?.() ?? false; }
+
+    // rebuilds File > Open Recent: file name, then its folder in grey
+    refreshRecentFiles(): void {
+        const menu = this.recentMenu;
+        if (menu == null)
+            return;
+        menu.clearItems();
+        const files: string[] = (window as any).getRecentFiles?.() ?? [];
+        for (const path of files) {
+            const sep = Math.max(path.lastIndexOf('\\'),path.lastIndexOf('/'));
+            const name = path.substring(sep + 1);
+            let dir = sep > 0 ? path.substring(0, sep) : "";
+            // long folders keep their end, the part that tells them apart
+            if (dir.length > 50)
+                dir = "…" + dir.substring(dir.length - 49);
+            const li = menu.addAction(escapeHtml(name) +
+                '<span style="opacity:.55;margin-left:12px">' + escapeHtml(dir) + '</span>',
+                () => this.app.commands.openRecentFile(path));
+            li.title = path;
+        }
+        if (files.length == 0)
+            menu.addAction(Locale.LS("No recent files"), () => {}).classList.add('menuItemDisabled');
+    }
 
     // Load the built-in circuits list from the server and build the Circuits menu.
     // Uses fetch() instead of GWT's RequestBuilder.
