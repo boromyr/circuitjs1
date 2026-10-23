@@ -186,6 +186,12 @@ export class CommandManager {
             this.app.undoManager?.pushUndo();
             (window as any).TestCreator?.createTest(this.app);
         }
+        // the Bode plot and FFT windows live in bodeplot.js and fftplot.js; they get their
+        // data from ACAnalysis and FFTCapture through the JS interface
+        if (item == "bodeplot")
+            (window as any).CircuitJSBode?.open();
+        if (item == "fftplot")
+            (window as any).CircuitJSFFT?.open();
         if (item == "stackAll")
             (this.app.scopeManager as any).stackAll?.();
         if (item == "unstackAll")

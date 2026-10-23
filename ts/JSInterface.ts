@@ -58,6 +58,19 @@ export class JSInterface {
     setTimeStep(ts: number): void { this.app.sim.timeStep = ts; }
     getMaxTimeStep(): number { return this.app.sim.maxTimeStep; }
     setMaxTimeStep(ts: number): void { this.app.sim.maxTimeStep = this.app.sim.timeStep = ts; }
+    getACTargets(): object { return this.app.sim.acAnalysis.getTargets(); }
+    getCircuitVersion(): number { return this.app.sim.circuitVersion; }
+    acSweep(src: string, out: string, fmin: number, fmax: number, n: number): object { return this.app.sim.acAnalysis.sweep(src, out, fmin, fmax, n); }
+    fftSelect(out: string, n: number): boolean { return this.app.sim.fftCapture.select(out, n); }
+    fftSamples(): object { return this.app.sim.fftCapture.samples(); }
+    fftClear(): void { this.app.sim.fftCapture.clear(); }
+    fftStop(): void { this.app.sim.fftCapture.stop(); }
+    fftStatus(): object { return this.app.sim.fftCapture.status(); }
+    fftSetFast(f: boolean, span: number): void { this.app.sim.fftCapture.setFast(f, span); }
+    // the Simulation Speed slider of the side panel (also shown in the Bode and FFT windows)
+    getSimSpeed(): number { return this.app.ui.speedBar.getValue(); }
+    getSimSpeedMax(): number { return this.app.ui.speedBar.max; }
+    setSimSpeed(v: number): void { this.app.ui.speedBar.setValue(Math.trunc(v)); }
 
     setupJSInterface(): void {
         const that = this;
@@ -75,6 +88,20 @@ export class JSInterface {
             getCircuitAsSVG: () => that.doExportAsSVGFromAPI(),
             exportCircuit:  () => that.dumpCircuit(),
             importCircuit:  (circuit: string, subcircuitsOnly: boolean) => that.importCircuitFromText(circuit, subcircuitsOnly),
+            // small-signal frequency response, used by bodeplot.js (see ACAnalysis)
+            getACTargets:   () => that.getACTargets(),
+            getCircuitVersion: () => that.getCircuitVersion(),
+            acSweep:        (src: string, out: string, fmin: number, fmax: number, n: number) => that.acSweep(src, out, fmin, fmax, n),
+            // voltage of an output recorded at every time step, used by fftplot.js (see FFTCapture)
+            fftSelect:      (out: string, n: number) => that.fftSelect(out, n),
+            fftSamples:     () => that.fftSamples(),
+            fftClear:       () => that.fftClear(),
+            fftStop:        () => that.fftStop(),
+            fftStatus:      () => that.fftStatus(),
+            fftSetFast:     (f: boolean, span: number) => that.fftSetFast(!!f, +span || 0),
+            getSimSpeed:    () => that.getSimSpeed(),
+            getSimSpeedMax: () => that.getSimSpeedMax(),
+            setSimSpeed:    (v: number) => that.setSimSpeed(v),
         };
         const hook = (window as any).oncircuitjsloaded;
         if (hook)

@@ -38,6 +38,7 @@ import { CirSim } from "./CirSim";
 import { ScrollValuePopup } from "./ScrollValuePopup";
 import { TypeScrollPopup } from "./TypeScrollPopup";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
+import type { ACAnalysis } from "./ACAnalysis";
 
 export class TransistorElm extends CircuitElm {
     // node 0 = base
@@ -367,6 +368,14 @@ export class TransistorElm extends CircuitElm {
             if (this.geqBC < 1e-20) { this.geqBC = this.ceqBC = this.capCurBC = 0; }
             else this.ceqBC = -this.geqBC * this.capVoltBC - this.capCurBC;
         }
+    }
+
+    // junction capacitance companions (trapezoidal, geq = 2C/dt) -> jwC
+    stampAC(ac: ACAnalysis): void {
+        if (this.geqBE > 0)
+            ac.junctionCapacitor(this.nodes[0], this.nodes[2], this.geqBE, this.geqBE*CircuitElm.sim.timeStep/2);
+        if (this.geqBC > 0)
+            ac.junctionCapacitor(this.nodes[0], this.nodes[1], this.geqBC, this.geqBC*CircuitElm.sim.timeStep/2);
     }
 
     stamp(): void {

@@ -28,6 +28,7 @@ import { FindPathInfo } from "./FindPathInfo";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { parseFloatStrict } from "./NumberParse";
+import type { ACAnalysis } from "./ACAnalysis";
 
 export class InductorElm extends CircuitElm {
     ind: Inductor;
@@ -135,6 +136,7 @@ export class InductorElm extends CircuitElm {
     startIteration(): void {
         this.ind.startIteration(this.nodes[0].v-this.nodes[this.getIndNode2()].v);
     }
+    stampAC(ac: ACAnalysis): void { this.ind.stampAC(ac); }
     nonLinear(): boolean { return this.ind.nonLinear(); }
     calculateCurrent(): void {
         const voltdiff = this.nodes[0].v-this.nodes[this.getIndNode2()].v;

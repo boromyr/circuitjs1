@@ -32,6 +32,7 @@ import { Color } from "./Color";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { parseFloatStrict } from "./NumberParse";
+import type { ACAnalysis } from "./ACAnalysis";
 
 export class CapacitorElm extends CircuitElm {
     capacitance: number;
@@ -193,6 +194,12 @@ export class CapacitorElm extends CircuitElm {
         //CircuitElm.sim.stampRightSide(this.nodes[this.capNode2]);
         if (this.seriesResistance > 0)
             CircuitElm.sim.stampResistor(this.nodes[1], this.nodes[2], this.seriesResistance);
+    }
+    stampAC(ac: ACAnalysis): void {
+        if (this.doDcAnalysis())
+            ac.capacitor(this.nodes[0], this.nodes[1], 1e-8, this.capacitance);
+        else if (this.compResistance > 0)
+            ac.capacitor(this.nodes[0], this.nodes[this.capNode2], 1/this.compResistance, this.capacitance);
     }
     startIteration(): void {
         if (this.isTrapezoidal())
