@@ -158,7 +158,8 @@ export class MosfetElm extends CircuitElm {
         const legacyDigital = (legacyFlags & this.FLAG_DIGITAL_LEGACY) !== 0;
         const legacyBodyDiode = (legacyFlags & this.FLAG_BODY_DIODE_LEGACY) !== 0;
         const legacyBodyTerminal = (legacyFlags & this.FLAG_BODY_TERMINAL_LEGACY) !== 0;
-        const legacyShowBodyDiode = (legacyFlags & this.FLAG_SHOW_BODY_DIODE_LEGACY) !== 0;
+        // the body diode is drawn by default, in old circuits too
+        const legacyShowBodyDiode = legacyBodyDiode || (legacyFlags & this.FLAG_SHOW_BODY_DIODE_LEGACY) !== 0;
         this.flags &= ~(this.FLAG_DIGITAL_LEGACY | this.FLAG_HIDE_BULK_LEGACY | this.FLAG_BODY_DIODE_LEGACY |
                    this.FLAG_BODY_TERMINAL_LEGACY | this.FLAG_SHOW_BODY_DIODE_LEGACY);
         return MosfetModel.getModelWithParameters(vt0, beta0, this.isJfet(), legacyShowBulk,

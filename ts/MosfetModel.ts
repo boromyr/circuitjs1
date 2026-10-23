@@ -69,6 +69,8 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
             this.beta = .02;
             this.showBulk = true;
             this.bodyDiode = true;
+            // the body diode is drawn by default
+            this.showBodyDiodeSymbol = true;
         } else if (dOrCopy instanceof MosfetModel) {
             const copy = dOrCopy;
             this.flags = copy.flags;
@@ -88,6 +90,8 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
             this.beta = b!;
             this.showBulk = true;
             this.bodyDiode = true;
+            // the body diode is drawn by default
+            this.showBodyDiodeSymbol = true;
         }
     }
 

@@ -367,24 +367,28 @@ class LoadFile {
             return;
         }
         const reader = new FileReader();
-        reader.onload = () => {
-            const text = reader.result as string;
-            if (CircuitLoader.isSubcircuitLibrary(text)) {
-                // library files just add global subcircuits; keep the current circuit and its title
-                app.loader.readSubcircuitLibrary(text);
-                app.createNewLoadFile();
-                return;
-            }
-            app.undoManager?.pushUndo();
-            app.resetEditingContext();
-            app.loader.readCircuit(text);
-            app.createNewLoadFile();
-            app.setCircuitTitle(file.name);
-            ExportAsLocalFileDialog.setLastFileName(file.name);
-            app.unsavedChanges = false;
-            app.savedFlag = true;
-        };
+        reader.onload = () => LoadFile.doLoadCallback(app, reader.result as string, file.name);
         reader.readAsText(file);
+    }
+
+    // also used for files opened by the Electron app (File > Open File..., Open Recent).
+    // Returns false for a subcircuit library, which doesn't replace the circuit.
+    static doLoadCallback(app: CirSim, text: string, name: string): boolean {
+        if (CircuitLoader.isSubcircuitLibrary(text)) {
+            // library files just add global subcircuits; keep the current circuit and its title
+            app.loader.readSubcircuitLibrary(text);
+            app.createNewLoadFile();
+            return false;
+        }
+        app.undoManager?.pushUndo();
+        app.resetEditingContext();
+        app.loader.readCircuit(text);
+        app.createNewLoadFile();
+        app.setCircuitTitle(name);
+        ExportAsLocalFileDialog.setLastFileName(name);
+        app.unsavedChanges = false;
+        app.savedFlag = true;
+        return true;
     }
 }
 
@@ -702,6 +706,7 @@ export class UIManager {
         this.menus.crossHairCheckItem.setState(this.getOptionFromStorage("crossHair", false));
         this.menus.showGridCheckItem.setState(this.getOptionFromStorage("showGrid", true));
         this.menus.gridLinesCheckItem.setState(this.getOptionFromStorage("gridLines", false));
+        this.menus.reopenLastCheckItem.setState(this.getOptionFromStorage("reopenLast", false));
         this.menus.euroResistorCheckItem.setState(euroSetting);
         this.menus.euroResistorCheckItem.setCommand({
             execute: () => {
@@ -917,6 +922,8 @@ export class UIManager {
             // there is a bug in electron that makes it impossible to close the app if this warning is given
             if (this.app.isModified() && !(CirSim as any).isElectron())
                 event.returnValue = Locale.LS("Are you sure?  There are unsaved changes.");
+            if (this.menus.reopenLastCheckItem.getState())
+                this.app.saveLastSession();
         });
 
         this.setColors(positiveColor, negativeColor, neutralColor, selectColor, currentColor);
@@ -2007,6 +2014,9 @@ export class UIManager {
 
     // ---- Widget management ----
 
+    // a circuit file read by the Electron app; false for a subcircuit library
+    loadCircuitFile(text: string, name: string): boolean { return LoadFile.doLoadCallback(this.app, text, name); }
+
     createNewLoadFile(): void {
         if (this.loadFileInput == null) return;
         const newlf = new LoadFile(this.app);
@@ -2048,7 +2058,10 @@ export class UIManager {
         }, ms);
     }
 
+    circuitTitle: string | null = null;
+
     setCircuitTitle(s: string | null): void {
+        this.circuitTitle = s;
         this.titleLabel.textContent = s == null ? null : s.replace(/_/g, "_​");
         if (s != null && s.length > 0)
             document.title = s + " - " + CirSim.baseTitle;
