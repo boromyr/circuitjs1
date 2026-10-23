@@ -689,12 +689,22 @@ export class Scope {
         if (this.selectedPlot >= 0)
             this.somethingSelected = true;
 
-        if (!forExport && (somethingSelectedHere || sel)) {
+        if (!forExport && (somethingSelectedHere || sel || this.app.scopeManager.scopeControlsHighlight(this))) {
             g.context.save();
             g.context.globalAlpha = 0.15;
             g.setColor(CircuitElm.selectColor);
             g.fillRect(0, 0, this.rect.width, this.rect.height);
             g.context.restore();
+        }
+        if (!forExport && this.app.scopeManager.isMarkedActive(this)) {
+            // corner mark: this is the scope the side panel scale sliders act on
+            g.setColor(CircuitElm.selectColor);
+            g.context.beginPath();
+            g.context.moveTo(0, 0);
+            g.context.lineTo(8, 0);
+            g.context.lineTo(0, 8);
+            g.context.closePath();
+            g.context.fill();
         }
         if (this.getSingleElm() !== null)
             this.somethingSelected = false;
@@ -788,15 +798,22 @@ export class Scope {
         this.scale[plot.units] = gridMax;
     }
 
-    calcGridStepX(): number {
-        let multptr = 0;
-        let gsx = 1e-15;
+    // mantissas for the horizontal grid step, finer than 1-2-5 so that each scope speed
+    // gets its own time/div
+    static readonly gridStepXMantissa: number[] = [1, 1.2, 1.5, 2, 2.5, 3, 4, 5, 6, 8];
 
-        const ts = this.sim.maxTimeStep * this.speed;
-        while (gsx < ts * 20) {
-            gsx *= multa[(multptr++) % 3];
+    calcGridStepX(): number {
+        // smallest "nice" step that keeps grid lines at least 20 pixels apart
+        const min = this.sim.maxTimeStep * this.speed * 20;
+        if (!(min > 0) || !isFinite(min))
+            return 1;
+        const mant = Scope.gridStepXMantissa;
+        const decade = Math.pow(10, Math.floor(Math.log10(min)));
+        for (let i = 0; ; i++) {
+            const gsx = decade * mant[i % mant.length] * (i >= mant.length ? 10 : 1);
+            if (gsx >= min * 0.999999)
+                return gsx;
         }
-        return gsx;
     }
 
     getGridMaxFromManScale(plot: ScopePlot): number {
@@ -1183,6 +1200,7 @@ export class Scope {
     }
 
     showProperties(): void {
+        this.app.scopeManager.setActiveScope(this);
         this.properties = HookRegistry.createScopePropertiesDialog!(this.app, this);
         CirSim.dialogShowing = this.properties;
     }

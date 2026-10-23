@@ -40,6 +40,7 @@ import { SubcircuitBar } from "./SubcircuitBar";
 import { MyCommand } from "./MyCommand";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
+import { ScopeControls } from "./ScopeControls";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -264,6 +265,12 @@ export class Scrollbar {
 
     enable():  void { this.enabled = true;  this.draw(); }
     disable(): void { this.enabled = false; this.dragging = false; this.draw(); }
+    isEnabled(): boolean { return this.enabled; }
+    isDragging(): boolean { return this.dragging; }
+
+    // largest value the bar can take (the constructor's max is one past it)
+    getMaxValue(): number { return this.max; }
+    setMaxValue(m: number): void { this.max = m; this.draw(); }
 
     addChangeHandler(fn: () => void): void { this.command = fn; }
 }
@@ -818,6 +825,10 @@ export class UIManager {
         this.iFrame.scrolling = 'no';
         this.verticalPanel.appendChild(this.iFrame);
 
+        // scale sliders for the active scope, at the bottom of the side panel (below the iframe)
+        this.app.scopeManager.scopeControls = new ScopeControls(this.app);
+        this.verticalPanel.appendChild(this.app.scopeManager.scopeControls.element);
+
         this.setGrid();
 
         this.app.mouse = this.mouse = new MouseManager(this.app, this);
@@ -1046,6 +1057,8 @@ export class UIManager {
             stopHighlightElm.setMouseElm(true);
 
         this.app.scopeManager.setupScopes();
+        if (this.app.scopeManager.scopeControls != null)
+            this.app.scopeManager.scopeControls.refresh();
 
         const g = new Graphics(this.cvcontext);
 
@@ -2003,16 +2016,27 @@ export class UIManager {
             return;
         let cumheight = 0;
         const children = Array.from(this.verticalPanel.children) as HTMLElement[];
+        let belowIFrame = false;
         for (const child of children) {
-            if (child === this.iFrame) break;
+            if (child === this.iFrame) {
+                // widgets placed below the iframe (scope controls) count too
+                belowIFrame = true;
+                continue;
+            }
             if (this.loadFileInput && child === this.loadFileInput.element) continue;
             cumheight += child.offsetHeight;
-            if (child.className.includes('topSpace'))
+            if (!belowIFrame && child.className.includes('topSpace'))
                 cumheight += 12;
         }
         let ih = window.innerHeight - (this.hideMenu ? 0 : UIManager.MENUBARHEIGHT) - cumheight;
         if (ih < 0) ih = 0;
         this.iFrame.style.height = ih + 'px';
+        // heights of text lines are fractional, so the rounded offsetHeights above can come up
+        // a few pixels short: take what still overflows off the iframe, so nothing below it
+        // (scope controls) is cut off or needs a scrollbar
+        const over = this.verticalPanel.scrollHeight - this.verticalPanel.clientHeight;
+        if (over > 0 && ih > 0)
+            this.iFrame.style.height = Math.max(0, ih - over) + 'px';
     }
 
     setColors(positiveColor: string | null, negativeColor: string | null,

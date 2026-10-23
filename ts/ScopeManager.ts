@@ -19,6 +19,7 @@
 
 import { Scope } from "./Scope";
 import type { ScopeElm } from "./ScopeElm";
+import type { ScopeControls } from "./ScopeControls";
 import { ScopePopupMenu } from "./ScopePopupMenu";
 import { CircuitElm } from "./CircuitElm";
 import { CirSim } from "./CirSim";
@@ -39,6 +40,8 @@ export class ScopeManager {
     scopeHeightFraction: number = 0.2;
     oldScopeCount: number = -1;
     scopePopupMenu: ScopePopupMenu | null = null;
+    activeScope: Scope | null = null; // scope controlled by the side panel scale sliders
+    scopeControls: ScopeControls | null = null;
 
     // GWT MenuBar/MenuItem skipped; init() and composeSelectScopeMenu() are stubs.
     selectScopeMenuBar: any = null;
@@ -303,6 +306,74 @@ export class ScopeManager {
     resetGraphs(): void {
         for (let i = 0; i !== this.scopeCount; i++)
             this.scopes[i].resetGraphFull(true);
+    }
+
+    isScopeShown(s: Scope): boolean {
+        let i;
+        for (i = 0; i !== this.scopeCount; i++)
+            if (this.scopes[i] === s)
+                return true;
+        const scopeElmArr = this.sim.scopeElmArr;
+        if (scopeElmArr !== null)
+            for (i = 0; i !== scopeElmArr.length; i++)
+                if (scopeElmArr[i].elmScope === s)
+                    return true;
+        return false;
+    }
+
+    // get the scope the side panel controls act on, falling back to the first one if
+    // the last one used has gone away
+    getActiveScope(): Scope | null {
+        if (this.activeScope !== null && this.isScopeShown(this.activeScope))
+            return this.activeScope;
+        this.activeScope = null;
+        const scopeElmArr = this.sim.scopeElmArr;
+        if (this.scopeCount > 0)
+            this.activeScope = this.scopes[0];
+        else if (scopeElmArr !== null && scopeElmArr.length > 0)
+            this.activeScope = scopeElmArr[0].elmScope;
+        return this.activeScope;
+    }
+
+    setActiveScope(s: Scope): void {
+        this.activeScope = s;
+    }
+
+    // make the scope under the mouse (docked or undocked) the active one
+    setActiveScopeFromMouse(mouseElm: CircuitElm | null): void {
+        if (this.scopeSelected !== -1)
+            this.activeScope = this.scopes[this.scopeSelected];
+        else if (mouseElm !== null && mouseElm.isScopeElm())
+            this.activeScope = (mouseElm as ScopeElm).elmScope;
+    }
+
+    // highlight a scope while the mouse is over the side panel controls acting on it
+    scopeControlsHighlight(s: Scope): boolean {
+        return this.scopeControls !== null && this.scopeControls.highlightScope(s);
+    }
+
+    // mark the active scope when there's more than one, so it's clear which one the controls act on
+    isMarkedActive(s: Scope): boolean {
+        if (s !== this.activeScope || this.scopeControls === null || !this.scopeControls.isVisible())
+            return false;
+        const scopeElmArr = this.sim.scopeElmArr;
+        return this.scopeCount + (scopeElmArr === null ? 0 : scopeElmArr.length) > 1;
+    }
+
+    // docked scopes in the same column share their speed (see setupScopes()), so set all of them
+    setScopeSpeed(s: Scope, sp: number): void {
+        let i;
+        let docked = false;
+        for (i = 0; i !== this.scopeCount; i++)
+            if (this.scopes[i] === s)
+                docked = true;
+        if (!docked) {
+            s.setSpeed(sp);
+            return;
+        }
+        for (i = 0; i !== this.scopeCount; i++)
+            if (this.scopes[i].position === s.position && this.scopes[i].speed !== sp)
+                this.scopes[i].setSpeed(sp);
     }
 
     static max(a: number, b: number): number { return (a > b) ? a : b; }
