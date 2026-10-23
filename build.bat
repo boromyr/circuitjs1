@@ -1,5 +1,5 @@
 @echo off
-rem Builds the TypeScript version of CircuitJS1 on Windows.
+rem Builds the TypeScript version of CircuitJS on Windows.
 rem
 rem   build.bat            build ts\ (npm, Vite) into site\, then refresh the offline
 rem                        app's resources\app if it is packaged already
@@ -7,17 +7,17 @@ rem   build.bat electron   ...package the offline app in %OUT% from scratch inst
 rem   build.bat install    copy the packaged app to %INSTALL% (asks for UAC if needed)
 rem   build.bat serve      serve site\ on http://localhost:8000 (needs Python)
 rem
-rem The app goes to its own folders, next to the Java one (offline\CircuitJS1-win32-x64,
+rem The app goes to its own folders, next to the Java one (offline\CircuitJS-win32-x64,
 rem C:\Program Files\CircuitJS), and keeps its own profile in data\ next to the exe.
 setlocal EnableExtensions
 set "ROOT=%~dp0"
 set "ROOT=%ROOT:~0,-1%"
 rem TOOLS (Electron zip, portable.js) can be given from outside, e.g. for a git worktree
 if not defined TOOLS set "TOOLS=%ROOT%\.tools"
-set "ELECTRON_VERSION=v44.9.0"
+set "ELECTRON_VERSION=v45.0.0"
 set "ELECTRON_ZIP=%TOOLS%\dl\electron-%ELECTRON_VERSION%-win32-x64.zip"
-set "OUT=%ROOT%\offline\CircuitJS1-ts-win32-x64"
-set "INSTALL=C:\Program Files\CircuitJS TS"
+set "OUT=%ROOT%\offline\CircuitJS-ts-win32-x64"
+set "INSTALL=C:\Program Files\CircuitJS"
 
 set "TARGET=%~1"
 if "%TARGET%"=="" set "TARGET=site"
@@ -56,7 +56,7 @@ if errorlevel 8 goto fail
 robocopy "%ROOT%\app" "%OUT%\resources\app" /xf package.json *.cs /r:1 /w:1 /nfl /ndl /njh /njs /np >nul
 if errorlevel 8 goto fail
 call :helper "%OUT%\resources\app" || goto fail
-echo === Done: %OUT%\CircuitJS1.exe
+echo === Done: %OUT%\CircuitJS.exe
 exit /b 0
 
 :electron
@@ -65,12 +65,12 @@ if not exist "%ELECTRON_ZIP%" (
     exit /b 1
 )
 for /f "usebackq delims=" %%V in (`powershell -NoProfile -Command "(Select-String -Path 'ts\CirSim.ts' -Pattern 'versionString: string = .([\w.]+)').Matches[0].Groups[1].Value"`) do set "VERSION=%%V"
-echo === Packaging CircuitJS1 %VERSION% with Electron %ELECTRON_VERSION%
+echo === Packaging CircuitJS %VERSION% with Electron %ELECTRON_VERSION%
 
 rem files of a running instance are locked, and clearing would stop halfway
-powershell -NoProfile -Command "if (Get-Process CircuitJS1 -ErrorAction SilentlyContinue | Where-Object { $_.Path -like ($env:OUT + '\*') }) { exit 1 }"
+powershell -NoProfile -Command "if (Get-Process CircuitJS -ErrorAction SilentlyContinue | Where-Object { $_.Path -like ($env:OUT + '\*') }) { exit 1 }"
 if errorlevel 1 (
-    echo CircuitJS1 is running from %OUT%: close it and run again.
+    echo CircuitJS is running from %OUT%: close it and run again.
     exit /b 1
 )
 rem clear the previous build but keep the portable profile (data\)
@@ -78,7 +78,7 @@ if not exist "%OUT%" mkdir "%OUT%"
 powershell -NoProfile -Command "Get-ChildItem -LiteralPath $env:OUT -Force | Where-Object Name -ne 'data' | Remove-Item -Recurse -Force -Confirm:$false" || goto fail
 tar -xf "%ELECTRON_ZIP%" -C "%OUT%" || goto fail
 del /q "%OUT%\resources\default_app.asar" 2>nul
-ren "%OUT%\electron.exe" CircuitJS1.exe || goto fail
+ren "%OUT%\electron.exe" CircuitJS.exe || goto fail
 
 set "APP=%OUT%\resources\app"
 mkdir "%APP%"
@@ -95,8 +95,8 @@ if exist "%TOOLS%\portable.js" (
 )
 
 rem zip without the portable profile
-if exist "%TOOLS%\zip-app.ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "%TOOLS%\zip-app.ps1" -Folder "%OUT%" -Zip "%ROOT%\offline\CircuitJS1-%VERSION%-win32-x64.zip" || goto fail
-echo === Done: %OUT%\CircuitJS1.exe
+if exist "%TOOLS%\zip-app.ps1" powershell -NoProfile -ExecutionPolicy Bypass -File "%TOOLS%\zip-app.ps1" -Folder "%OUT%" -Zip "%ROOT%\offline\CircuitJS-%VERSION%-win32-x64.zip" || goto fail
+echo === Done: %OUT%\CircuitJS.exe
 exit /b 0
 
 rem Compiles app\filedialog.cs (native open/save dialogs that remember the folder
@@ -117,7 +117,7 @@ rem or replaced, none removed.  Program Files is writable only by administrators
 rem without rights it asks for UAC.  robocopy writes its summary (and any error) to a
 rem log, also when it runs elevated in a hidden window, and the log is printed at the end.
 :installonly
-if not exist "%OUT%\CircuitJS1.exe" (
+if not exist "%OUT%\CircuitJS.exe" (
     echo The app is not packaged yet: run build.bat electron first.
     exit /b 1
 )
