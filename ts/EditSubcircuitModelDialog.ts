@@ -27,6 +27,8 @@ import { Locale } from "./Locale";
 import { CirSim } from "./CirSim";
 import { SimulationManager } from "./SimulationManager";
 import { SubcircuitElm } from "./SubcircuitElm";
+import { SubcircuitSymbols } from "./SubcircuitSymbols";
+import { UserModelLibrary } from "./UserModelLibrary";
 
 export class EditSubcircuitModelDialog extends Dialog {
     model: SubcircuitModel = null!;
@@ -39,7 +41,10 @@ export class EditSubcircuitModelDialog extends Dialog {
     private modelNameInput: HTMLInputElement | null = null;
     private scopeSelect: HTMLSelectElement | null = null;
     private labelCheck: HTMLInputElement | null = null;
+    private categorySelect: HTMLSelectElement | null = null;
     private canvas: HTMLCanvasElement | null = null;
+    // name proposed for a new model (e.g. the name of an imported SPICE subcircuit)
+    defaultName: string | null = null;
 
     private dragging: boolean = false;
     private rubberBand: boolean = false;
@@ -67,7 +72,6 @@ export class EditSubcircuitModelDialog extends Dialog {
     setModel(m: SubcircuitModel): void { this.model = m; }
 
     createModel(): boolean {
-        const nodeSet = new Set<number>();
         this.model = (SimulationManager.theSim as any).getCircuitAsComposite();
         if (!this.model) return false;
         if (this.model.extList.length === 0) {
@@ -75,6 +79,36 @@ export class EditSubcircuitModelDialog extends Dialog {
             this.model.remove();
             return false;
         }
+        return this.layoutPins();
+    }
+
+    // load an externally-built model (e.g. from SPICE import)
+    loadModel(m: SubcircuitModel): boolean {
+        this.model = m;
+        if (m.extList.length === 0) {
+            window.alert(Locale.LS("Device has no external inputs/outputs!"));
+            return false;
+        }
+        // pins that share a side and position (an import puts them all at the top of the
+        // west side) are spread out down their side, so they don't overlap
+        const places = new Set<number>();
+        let overlap = false;
+        for (const pin of m.extList)
+            if (places.has(pin.side * 10000 + pin.pos))
+                overlap = true;
+            else
+                places.add(pin.side * 10000 + pin.pos);
+        if (overlap) {
+            const sidePos = [0, 0, 0, 0];
+            for (const pin of m.extList)
+                pin.pos = sidePos[pin.side]++;
+        }
+        return this.layoutPins();
+    }
+
+    // sort the pins of a new model and size its chip to fit them
+    private layoutPins(): boolean {
+        const nodeSet = new Set<number>();
         this.model.extList.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
         const postCount = this.model.extList.length;
@@ -108,22 +142,25 @@ export class EditSubcircuitModelDialog extends Dialog {
     createDialog(): void {
         this.dialogEl.innerHTML = "";
 
+        // subcircuits drawn with a component symbol have no pin layout to edit
+        const hasSymbol = (this.model.symbol != null);
         const title = document.createElement("div");
-        title.textContent = Locale.LS("Edit Subcircuit Pin Layout");
+        title.textContent = Locale.LS(hasSymbol ? "Subcircuit Properties" : "Edit Subcircuit Pin Layout");
         title.style.fontWeight = "bold";
         title.style.marginBottom = "8px";
         this.dialogEl.appendChild(title);
 
-        this.dialogEl.appendChild(
-            Object.assign(document.createElement("div"), { textContent: Locale.LS("Drag the pins to the desired position") })
-        );
+        if (!hasSymbol)
+            this.dialogEl.appendChild(
+                Object.assign(document.createElement("div"), { textContent: Locale.LS("Drag the pins to the desired position") })
+            );
 
         this.canvas = document.createElement("canvas");
         this.canvas.width = 400;
         this.canvas.height = 400;
         this.canvas.style.width = "400px";
         this.canvas.style.height = "400px";
-        this.canvas.style.display = "block";
+        this.canvas.style.display = hasSymbol ? "none" : "block";
         this.dialogEl.appendChild(this.canvas);
         this.context = this.canvas.getContext("2d")!;
 
@@ -145,6 +182,8 @@ export class EditSubcircuitModelDialog extends Dialog {
             this.modelNameInput = document.createElement("input");
             this.modelNameInput.type = "text";
             this.modelNameInput.style.display = "block";
+            if (this.defaultName != null)
+                this.modelNameInput.value = this.defaultName;
             this.modelNameInput.addEventListener("input", () => this.drawChip());
             this.dialogEl.appendChild(this.modelNameInput);
         }
@@ -165,6 +204,8 @@ export class EditSubcircuitModelDialog extends Dialog {
         addBtn("+", 1, 0); addBtn("-", -1, 0);
         hp.appendChild(Object.assign(document.createElement("span"), { textContent: "  " + Locale.LS("Height") + " " }));
         addBtn("+", 0, 1); addBtn("-", 0, -1);
+        if (hasSymbol)
+            hp.style.display = "none";
         this.dialogEl.appendChild(hp);
 
         // Label checkbox
@@ -195,6 +236,30 @@ export class EditSubcircuitModelDialog extends Dialog {
             this.scopeSelect.selectedIndex = EditSubcircuitModelDialog.SCOPE_THIS_CIRCUIT;
         scopeRow.appendChild(this.scopeSelect);
         this.dialogEl.appendChild(scopeRow);
+
+        // which menu the subcircuit is listed in
+        const categoryRow = document.createElement("div");
+        categoryRow.style.margin = "8px 0";
+        categoryRow.appendChild(Object.assign(document.createElement("span"), { textContent: Locale.LS("Menu:") + " " }));
+        this.categorySelect = document.createElement("select");
+        const cat = this.model.name ? UserModelLibrary.getCategory(this.model.name) :
+            SubcircuitSymbols.getDefaultCategory(this.model.symbol);
+        for (let i = 0; i !== UserModelLibrary.categoryKeys.length; i++) {
+            this.categorySelect.appendChild(Object.assign(document.createElement("option"),
+                { textContent: UserModelLibrary.getCategoryLabel(i) }));
+            if (UserModelLibrary.categoryKeys[i] === cat)
+                this.categorySelect.selectedIndex = i;
+        }
+        categoryRow.appendChild(this.categorySelect);
+        this.dialogEl.appendChild(categoryRow);
+        // imported op-amps aren't in the menus, they are models of the real op-amp
+        if (this.model.symbol === SubcircuitSymbols.SYM_OPAMP) {
+            categoryRow.style.display = "none";
+            labelLabel.style.display = "none";
+            this.categorySelect = null;
+            this.dialogEl.appendChild(Object.assign(document.createElement("div"),
+                { textContent: Locale.LS("Choose this model in the edit dialog of Op Amp (real).") }));
+        }
 
         const btnRow = document.createElement("div");
         btnRow.style.display = "flex";
@@ -240,6 +305,8 @@ export class EditSubcircuitModelDialog extends Dialog {
         this.model.setName(name);
         }
         const scope = this.scopeSelect!.selectedIndex;
+        if (this.categorySelect)
+            UserModelLibrary.setCategory(this.model.name, UserModelLibrary.categoryKeys[this.categorySelect.selectedIndex]);
         SubcircuitModel.localModelMap.delete(this.model.name);
         SubcircuitModel.globalModelMap.delete(this.model.name);
         this.model.setSaved(false);

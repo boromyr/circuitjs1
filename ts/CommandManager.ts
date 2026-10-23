@@ -37,6 +37,8 @@ import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { CommandPalette } from "./CommandPalette";
 import { ImportFromTextDialog } from "./ImportFromTextDialog";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
+import { ImportFromSpiceDialog } from "./ImportFromSpiceDialog";
+import { ModelManagerDialog } from "./ModelManagerDialog";
 import "./GetCircuitAsSubcircuit";
 import { Scope } from "./Scope";
 import { ScopeElm } from "./ScopeElm";
@@ -100,6 +102,10 @@ export class CommandManager {
             this.app.imageExporter?.doExportAsSVG();
         if (item == "createsubcircuit")
             this.doCreateSubcircuit();
+        if (item == "importfromspice")
+            new ImportFromSpiceDialog();
+        if (item == "managemodels")
+            ModelManagerDialog.open();
         if (item == "dcanalysis")
             this.doDCAnalysis();
         if (item == "print")

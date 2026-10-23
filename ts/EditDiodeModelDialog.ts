@@ -19,6 +19,7 @@
 
 import { EditDialog } from "./EditDialog";
 import { CirSim } from "./CirSim";
+import { UserModelLibrary } from "./UserModelLibrary";
 import { DiodeModel } from "./DiodeModel";
 import type { DiodeElm } from "./DiodeElm";
 
@@ -38,6 +39,7 @@ export class EditDiodeModelDialog extends EditDialog {
             return false;
         if (this.model.name === null || this.model.name.length === 0)
             this.model.pickName();
+        UserModelLibrary.modelEdited(this.model);
         if (this.diodeElm !== null)
             this.diodeElm.newModelCreated(this.model);
         return true;

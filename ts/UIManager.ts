@@ -31,6 +31,8 @@ import { SwitchElm } from "./SwitchElm";
 import { Locale } from "./Locale";
 import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { SubcircuitModel } from "./SubcircuitModel";
+import { SubcircuitSymbols } from "./SubcircuitSymbols";
+import { UserModelLibrary } from "./UserModelLibrary";
 import { CircuitLoader } from "./CircuitLoader";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
 import { KeyNames } from "./KeyNames";
@@ -2096,22 +2098,42 @@ export class UIManager {
         this.repaint();
     }
 
+    // items added to the menus for subcircuits, per menu (popup, Draw menu), so they can be rebuilt
+    private subcircuitMenuItems: CheckboxMenuItem[][] = [[], []];
+
+    // rebuild the subcircuit menu entries, each in the Subcircuits menu or the category chosen for it
     composeSubcircuitMenu(): void {
         if (this.menus.subcircuitMenuBar == null)
             return;
 
         for (let mi = 0; mi !== 2; mi++) {
-            const menu = this.menus.subcircuitMenuBar[mi];
-            menu.clearItems();
+            // remove what we added last time
+            for (const item of this.subcircuitMenuItems[mi]) {
+                item._li?.remove();
+                const ix = this.mainMenuItems.indexOf(item);
+                if (ix >= 0) {
+                    this.mainMenuItems.splice(ix, 1);
+                    this.mainMenuItemNames.splice(ix, 1);
+                }
+            }
+            this.subcircuitMenuItems[mi] = [];
+            this.menus.subcircuitMenuBar[mi].clearItems();
             const list = SubcircuitModel.getModelList();
             for (let i = 0; i !== list.length; i++) {
                 const name: string = list[i].name;
-                const mi = this.getClassCheckItem(Locale.LS("Add ") + name, "SubcircuitElm:" + name);
-                mi.setState(this.mouseModeStr === "SubcircuitElm:" + name);
-                menu.addCheckboxItem(mi);
+                // imported op-amps are chosen in the model list of the real op-amp instead
+                if (SubcircuitSymbols.isOpAmpModel(list[i]))
+                    continue;
+                const menu = this.menus.categoryMenus[mi]?.get(UserModelLibrary.getCategory(name)) ??
+                    this.menus.subcircuitMenuBar[mi];
+                const item = this.getClassCheckItem(Locale.LS("Add ") + name, "SubcircuitElm:" + name);
+                item.setState(this.mouseModeStr === "SubcircuitElm:" + name);
+                menu.addCheckboxItem(item);
+                this.subcircuitMenuItems[mi].push(item);
             }
         }
         MouseManager.lastSubcircuitMenuUpdate = SubcircuitModel.sequenceNumber;
+        MouseManager.lastUserModelMenuUpdate = UserModelLibrary.sequenceNumber;
     }
 
     getClassCheckItem(s: string, t: string): CheckboxMenuItem {
