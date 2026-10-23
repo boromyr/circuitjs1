@@ -40,6 +40,14 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
     emissionCoefficient: number;
     breakdownVoltage: number;
 
+    // Junction capacitance parameters (SPICE)
+    // Models the physical depletion-layer capacitance of the PN junction.
+    // C(V) = CJ0 / (1 - V/VJ)^M   for V < 0.5*VJ
+    junctionCap: number = 0;               // CJ0: zero-bias junction capacitance (F), 0=disabled
+    junctionPot: number = 0.75;            // VJ: built-in junction potential (V)
+    junctionExp: number = 0.33;            // M: junction grading coefficient
+    transitTime: number = 0;               // TT: transit time (s), adds diffusion capacitance Cd = TT*gd
+
     // used for UI code, not guaranteed to be set
     forwardVoltage: number = 0;
     forwardCurrent: number = 0;
@@ -80,6 +88,10 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
             this.emissionCoefficient = copy.emissionCoefficient;
             this.breakdownVoltage = copy.breakdownVoltage;
             this.forwardCurrent = copy.forwardCurrent;
+            this.junctionCap = copy.junctionCap;
+            this.junctionPot = copy.junctionPot;
+            this.junctionExp = copy.junctionExp;
+            this.transitTime = copy.transitTime;
             this.updateModel();
         } else {
             // full constructor
@@ -257,6 +269,13 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         try {
             this.forwardCurrent = parseFloatStrict(st.nextToken());
         } catch (e) {}
+        // junction capacitance params (optional, for backward compatibility)
+        try {
+            this.junctionCap = parseFloatStrict(st.nextToken());
+            this.junctionPot = parseFloatStrict(st.nextToken());
+            this.junctionExp = parseFloatStrict(st.nextToken());
+            this.transitTime = parseFloatStrict(st.nextToken());
+        } catch (e) {}
         this.updateModel();
     }
 
@@ -274,6 +293,10 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         this.emissionCoefficient = xml.parseDoubleAttr("n", this.emissionCoefficient);
         this.breakdownVoltage = xml.parseDoubleAttr("bv", this.breakdownVoltage);
         this.forwardCurrent = xml.parseDoubleAttr("fi", this.forwardCurrent);
+        this.junctionCap = xml.parseDoubleAttr("cjo", this.junctionCap);
+        this.junctionPot = xml.parseDoubleAttr("vj", this.junctionPot);
+        this.junctionExp = xml.parseDoubleAttr("m", this.junctionExp);
+        this.transitTime = xml.parseDoubleAttr("tt", this.transitTime);
         this.updateModel();
     }
 
@@ -300,6 +323,16 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         }
         if (n === 4)
             return new EditInfo("Breakdown Voltage", this.breakdownVoltage, -1, -1);
+        if (!this.isSimple()) {
+            if (n === 5)
+                return new EditInfo("Zero-Bias Junction Capacitance (CJ0)", this.junctionCap);
+            if (n === 6)
+                return new EditInfo("Junction Potential (VJ)", this.junctionPot);
+            if (n === 7)
+                return new EditInfo("Junction Grading Coefficient (M)", this.junctionExp);
+            if (n === 8)
+                return new EditInfo("Transit Time (TT)", this.transitTime);
+        }
         return null;
     }
 
@@ -325,6 +358,12 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         }
         if (n === 4)
             this.breakdownVoltage = Math.abs(ei.value);
+        if (!this.isSimple()) {
+            if (n === 5) this.junctionCap = ei.value;
+            if (n === 6 && ei.value > 0) this.junctionPot = ei.value;
+            if (n === 7 && ei.value > 0) this.junctionExp = ei.value;
+            if (n === 8 && ei.value >= 0) this.transitTime = ei.value;
+        }
         this.updateModel();
         CircuitElm.app.updateModels();
     }
@@ -360,6 +399,13 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         CircuitXMLSerializer.dumpAttr(elem, "bv", this.breakdownVoltage);
         if (this.forwardCurrent > 0)
             CircuitXMLSerializer.dumpAttr(elem, "fi", this.forwardCurrent);
+        if (this.junctionCap !== 0) {
+            CircuitXMLSerializer.dumpAttr(elem, "cjo", this.junctionCap);
+            CircuitXMLSerializer.dumpAttr(elem, "vj", this.junctionPot);
+            CircuitXMLSerializer.dumpAttr(elem, "m", this.junctionExp);
+        }
+        if (this.transitTime !== 0)
+            CircuitXMLSerializer.dumpAttr(elem, "tt", this.transitTime);
         doc.documentElement.appendChild(elem);
     }
 
@@ -369,6 +415,13 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
 
     setSimple(s: boolean): void {
         this.flags = s ? DiodeModel.FLAGS_SIMPLE : 0;
+        if (s) {
+            // clear capacitance parameters for simple models
+            this.junctionCap = 0;
+            this.junctionPot = 0.75;
+            this.junctionExp = 0.33;
+            this.transitTime = 0;
+        }
     }
 
     pickName(): void {

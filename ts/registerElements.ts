@@ -95,6 +95,7 @@ import { PDarlingtonElm } from "./PDarlingtonElm";
 import { PJfetElm } from "./PJfetElm";
 import { PMosfetElm } from "./PMosfetElm";
 import { PTransistorElm } from "./PTransistorElm";
+import { PeltierElm } from "./PeltierElm";
 import { PhaseCompElm } from "./PhaseCompElm";
 import { PisoShiftElm } from "./PisoShiftElm";
 import { PolarCapacitorElm } from "./PolarCapacitorElm";
@@ -248,6 +249,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("PJfetElm", PJfetElm as any);
     ElementFactory.registerClass("PMosfetElm", PMosfetElm as any);
     ElementFactory.registerClass("PTransistorElm", PTransistorElm as any);
+    ElementFactory.registerClass("PeltierElm", PeltierElm as any);
     ElementFactory.registerClass("PhaseCompElm", PhaseCompElm as any);
     ElementFactory.registerClass("PisoShiftElm", PisoShiftElm as any);
     ElementFactory.registerClass("PolarCapacitorElm", PolarCapacitorElm as any);
@@ -397,6 +399,7 @@ export function registerElements(): void {
     CirSim.theApp.register("PJfetElm", new PJfetElm(0, 0));
     CirSim.theApp.register("PMosfetElm", new PMosfetElm(0, 0));
     CirSim.theApp.register("PTransistorElm", new PTransistorElm(0, 0));
+    CirSim.theApp.register("PeltierElm", new PeltierElm(0, 0));
     CirSim.theApp.register("PhaseCompElm", new PhaseCompElm(0, 0));
     CirSim.theApp.register("PisoShiftElm", new PisoShiftElm(0, 0));
     CirSim.theApp.register("PolarCapacitorElm", new PolarCapacitorElm(0, 0));

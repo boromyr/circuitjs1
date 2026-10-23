@@ -21,6 +21,7 @@ import { CapacitorElm } from "./CapacitorElm";
 import { Checkbox } from "./Checkbox";
 import { Choice } from "./Choice";
 import { CircuitElm } from "./CircuitElm";
+import { Color } from "./Color";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { CompositeElm } from "./CompositeElm";
@@ -212,6 +213,22 @@ export class OpAmpRealElm extends CompositeElm {
         CircuitElm.drawThickLine(g, this.rail1p[0], this.rail1p[1]);
         this.setVoltageColor(g, this.nodes[4].v);
         CircuitElm.drawThickLine(g, this.rail2p[0], this.rail2p[1]);
+        // draw operating region indicator (saturation coloring)
+        if (this.showOperatingRegion()) {
+            const vPlus = this.nodes[3].v;
+            const vMinus = this.nodes[4].v;
+            const range = vPlus - vMinus;
+            let saturationMargin = range * 0.02;
+            if (saturationMargin < 0.05)
+                saturationMargin = 0.05;
+            if (this.nodes[2].v >= vPlus - saturationMargin) {
+                g.setColor(new Color(180, 60, 60));  // positive saturation - red tint
+                g.fillPolygon(this.triangle);
+            } else if (this.nodes[2].v <= vMinus + saturationMargin) {
+                g.setColor(new Color(60, 60, 180));  // negative saturation - blue tint
+                g.fillPolygon(this.triangle);
+            }
+        }
         g.setColor(this.needsHighlight() ? CircuitElm.selectColor : CircuitElm.lightGrayColor);
         this.setPowerColor(g, true);
         CircuitElm.drawThickPolygon(g, this.triangle);

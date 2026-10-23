@@ -18,6 +18,7 @@
 */
 
 import { CircuitElm } from "./CircuitElm";
+import { Color } from "./Color";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { Polygon } from "./Polygon";
@@ -115,6 +116,19 @@ export class OpAmpElm extends CircuitElm {
         CircuitElm.drawThickLine(g, this.in2p[0], this.in2p[1]);
         this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.lead2!, this.point2);
+        // draw operating region indicator (saturation coloring)
+        if (this.showOperatingRegion()) {
+            let saturationMargin = (this.maxOut - this.minOut) * 0.01;
+            if (saturationMargin < 0.01)
+                saturationMargin = 0.01;
+            if (this.nodes[2].v >= this.maxOut - saturationMargin) {
+                g.setColor(new Color(180, 60, 60));  // positive saturation - red tint
+                g.fillPolygon(this.triangle);
+            } else if (this.nodes[2].v <= this.minOut + saturationMargin) {
+                g.setColor(new Color(60, 60, 180));  // negative saturation - blue tint
+                g.fillPolygon(this.triangle);
+            }
+        }
         g.setColor(this.needsHighlight() ? CircuitElm.selectColor : CircuitElm.lightGrayColor);
         this.setPowerColor(g, true);
         CircuitElm.drawThickPolygon(g, this.triangle);

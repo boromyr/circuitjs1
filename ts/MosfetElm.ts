@@ -269,6 +269,21 @@ export class MosfetElm extends CircuitElm {
         this.setVoltageColor(g, this.nodes[2].v);
         CircuitElm.drawThickLine(g, this.drn[0], this.drn[1]);
 
+        // draw operating region indicator on channel
+        if (this.showOperatingRegion()) {
+            let regionColor: Color;
+            if (this.mode === 0)
+                regionColor = Color.gray;               // cutoff
+            else if (this.mode === 1)
+                regionColor = new Color(64, 128, 255);  // linear/triode - blue
+            else
+                regionColor = new Color(0, 192, 0);     // saturation - green
+            g.setColor(regionColor);
+            g.setLineWidth(6);
+            g.drawLine(this.src[1], this.drn[1]);
+            g.setLineWidth(3);
+        }
+
         // draw line connecting source and drain
         const segments = 6;
         this.setPowerColor(g, true);

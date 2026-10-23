@@ -112,10 +112,15 @@ export class EditOptions implements Editable {
         }
         if (n === 17)
             return new EditInfo("Value Label Font Size", CircuitElm.valueFontSize);
+        if (n === 18) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.checkbox = new Checkbox("Show Operating Region", CircuitElm.showOperatingRegion);
+            return ei;
+        }
 
         // add new options here (before the adjustTimeStep conditional below)
 
-        if (n === 18 && this.sim.adjustTimeStep)
+        if (n === 19 && this.sim.adjustTimeStep)
             return new EditInfo("Minimum time step size (s)", this.sim.minTimeStep, 0, 0).setPositive();
 
         // do not add new options here because they will be hidden unless adjustTimeStep is set
@@ -225,7 +230,13 @@ export class EditOptions implements Editable {
         }
         if (n === 17)
             CircuitElm.setValueFontSize(ei.value > 0 ? Math.trunc(ei.value) : 12);
-        if (n === 18 && ei.value > 0)
+        if (n === 18) {
+            CircuitElm.showOperatingRegion = ei.checkbox!.getState();
+            const stor = typeof localStorage !== 'undefined' ? localStorage : null;
+            if (stor != null)
+                stor.setItem("showOperatingRegion", CircuitElm.showOperatingRegion ? "true" : "false");
+        }
+        if (n === 19 && ei.value > 0)
             this.sim.minTimeStep = ei.value;
     }
 

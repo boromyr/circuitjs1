@@ -80,6 +80,8 @@ export abstract class CircuitElm implements Editable {
     static decimalDigits: number;
     static shortDecimalDigits: number;
 
+    static showOperatingRegion: boolean = false;
+
     // initial point where user created element.  For simple two-terminal elements, this is the first node/post.
     x: number;
 
@@ -170,6 +172,7 @@ export abstract class CircuitElm implements Editable {
             const sf = stor.getItem("valueFontSize");
             if (sf != null)
                 CircuitElm.valueFontSize = parseIntStrict(sf);
+            CircuitElm.showOperatingRegion = stor.getItem("showOperatingRegion") === "true";
         }
         CircuitElm.setDecimalDigits(CircuitElm.decimalDigits, false, false);
         CircuitElm.setDecimalDigits(CircuitElm.shortDecimalDigits, true, false);
@@ -1442,6 +1445,7 @@ export abstract class CircuitElm implements Editable {
     getShortcut(): number { return 0; }
     showValues(): boolean { return CircuitElm.app.menus.showValuesCheckItem.getState(); }
     showPower(): boolean { return CircuitElm.app.menus.powerCheckItem.getState(); }
+    showOperatingRegion(): boolean { return CircuitElm.showOperatingRegion; }
     showEuroResistors(): boolean { return CircuitElm.app.menus.euroResistorCheckItem.getState(); }
     showOhmSymbol(): boolean { return CircuitElm.app.menus.showOhmCheckItem.getState(); }
     useSmallGrid(): boolean { return CircuitElm.app.menus.smallGridCheckItem.getState(); }
