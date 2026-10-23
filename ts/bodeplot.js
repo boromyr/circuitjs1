@@ -365,7 +365,13 @@
 
 	function open() {
 		if (!sim) return;
-		if (win && !win.closed) { win.focus(); return; }
+		// already open: to the front (in Electron through main.js, window.focus() alone does
+		// not raise a window that is behind others)
+		if (win && !win.closed) {
+			if (window.showPlotWindow) window.showPlotWindow(WIN_NAME);
+			else win.focus();
+			return;
+		}
 		var g = load('geom', null);
 		var feat = 'width=' + (g ? g.w : 980) + ',height=' + (g ? g.h : 600);
 		if (g && num(g.x) && num(g.y)) feat += ',left=' + g.x + ',top=' + g.y;

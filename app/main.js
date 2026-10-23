@@ -229,6 +229,19 @@ ipcMain.on('toggle-dev-tools', (event) => {
   BrowserWindow.fromWebContents(event.sender).toggleDevTools();
 });
 
+// Bode and FFT windows of each simulator window, by frame name.  Opening one that is
+// open already brings it to the front: window.focus() from the page cannot do that
+// once the window is behind others.
+const plotWindows = new Map();
+ipcMain.on('show-plot-window', (event, name) => {
+  const win = plotWindows.get(event.sender.id + ':' + name);
+  if (!win || win.isDestroyed()) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.moveTop();
+  win.focus();
+});
+
 ipcMain.on('new-window', () => {
   createWindow();
 });
@@ -355,6 +368,13 @@ function createWindow () {
 	}
 	// new windows are handled via IPC (window.newWindow); deny everything else
 	return { action: 'deny' };
+  });
+  mainWindow.webContents.on('did-create-window', (win, details) => {
+	if (details.frameName === 'circuitjs-bode' || details.frameName === 'circuitjs-fft') {
+	  const key = mainWindow.webContents.id + ':' + details.frameName;
+	  plotWindows.set(key, win);
+	  win.on('closed', () => { if (plotWindows.get(key) === win) plotWindows.delete(key); });
+	}
   });
 
 }

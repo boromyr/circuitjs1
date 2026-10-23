@@ -57,6 +57,11 @@ window.toggleDevTools = function () {
   ipcRenderer.send('toggle-dev-tools');
 }
 
+// brings the open Bode or FFT window (frame name) to the front, see main.js
+window.showPlotWindow = function (name) {
+  ipcRenderer.send('show-plot-window', name);
+}
+
 window.newWindow = function () {
   ipcRenderer.send('new-window');
 }
