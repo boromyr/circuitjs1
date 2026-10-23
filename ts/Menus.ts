@@ -427,7 +427,8 @@ export class Menus {
         editMenu.addMenuItem(this.selectAllItem, shortcutHtml("select-all", "Select All", Locale.LS(ck + "A")), "edit", "selectAll");
         editMenu.addSeparator();
         editMenu.addCommand(shortcutHtml("search", "Find Component/Command...", "/"),          "edit", "search");
-        editMenu.addCommand(iconHtml("target", Locale.weAreInUS(false) ? "Center Circuit" : "Centre Circuit"), "edit", "centercircuit");
+        editMenu.addCommand(shortcutHtml("target", Locale.weAreInUS(false) ? "Center Circuit" : "Centre Circuit",
+            (this.isMac ? Locale.LS("Option-") : Locale.LS("Alt-")) + "&uarr;"), "edit", "centercircuit");
         editMenu.addCommand(shortcutHtml("zoom-11",  "Zoom 100%", "0"), "zoom", "zoom100");
         editMenu.addCommand(shortcutHtml("zoom-in",  "Zoom In",   "+"), "zoom", "zoomin");
         editMenu.addCommand(shortcutHtml("zoom-out", "Zoom Out",  "-"), "zoom", "zoomout");

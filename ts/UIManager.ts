@@ -55,7 +55,7 @@ const KEY_RIGHT     = 39;
 const KEY_UP        = 38;
 const KEY_DOWN      = 40;
 const KEY_A = 65, KEY_C = 67, KEY_D = 68, KEY_N = 78;
-const KEY_O = 79, KEY_P = 80, KEY_S = 83, KEY_V = 86;
+const KEY_O = 79, KEY_P = 80, KEY_R = 82, KEY_S = 83, KEY_V = 86;
 const KEY_X = 88, KEY_Y = 89, KEY_Z = 90;
 
 export class Scrollbar {
@@ -1823,7 +1823,11 @@ export class UIManager {
             e.preventDefault();
         }
 
-        if (code === KEY_LEFT || code === KEY_RIGHT || code === KEY_UP || code === KEY_DOWN) {
+        const altOnly = e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+        if (code === KEY_UP && altOnly) {
+            this.app.commands.menuPerformed("key", "centercircuit");
+            e.preventDefault();
+        } else if (code === KEY_LEFT || code === KEY_RIGHT || code === KEY_UP || code === KEY_DOWN) {
             let dx = 0, dy = 0;
             if (code === KEY_LEFT)  dx = -this.app.gridSize;
             if (code === KEY_RIGHT) dx = this.app.gridSize;
@@ -1876,6 +1880,8 @@ export class UIManager {
             if (code === KEY_D) { this.app.commands.menuPerformed("key", "duplicate");         e.preventDefault(); }
             if (code === KEY_A) { this.app.commands.menuPerformed("key", "selectAll");         e.preventDefault(); }
             if (code === KEY_P) { this.app.commands.menuPerformed("key", "print");             e.preventDefault(); }
+            // (instead of reloading the page)
+            if (code === KEY_R) { this.resetAction();                                          e.preventDefault(); }
             if (code === KEY_N && (CirSim as any).isElectron()) {
                 this.app.commands.menuPerformed("key", "newwindow");
                 e.preventDefault();
