@@ -19,6 +19,7 @@
 
 import { EditDialog } from "./EditDialog";
 import { CirSim } from "./CirSim";
+import { UserModelLibrary } from "./UserModelLibrary";
 import { MosfetModel } from "./MosfetModel";
 import type { MosfetElm } from "./MosfetElm";
 
@@ -37,6 +38,7 @@ export class EditMosfetModelDialog extends EditDialog {
         const ok = super.apply();
         if (this.model.name === null || this.model.name.length === 0)
             this.model.pickName();
+        UserModelLibrary.modelEdited(this.model);
         if (this.mosfetElm !== null)
             this.mosfetElm.newModelCreated(this.model);
         return ok;

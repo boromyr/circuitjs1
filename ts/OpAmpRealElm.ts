@@ -32,6 +32,9 @@ import { Polygon } from "./Polygon";
 import { ResistorElm } from "./ResistorElm";
 import { StringTokenizer } from "./StringTokenizer";
 import { TransistorElm } from "./TransistorElm";
+import { Locale } from "./Locale";
+import { SubcircuitModel } from "./SubcircuitModel";
+import { SubcircuitSymbols } from "./SubcircuitSymbols";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
 export class OpAmpRealElm extends CompositeElm {
@@ -78,10 +81,14 @@ export class OpAmpRealElm extends CompositeElm {
     static readonly MODEL_741 = 0;
     static readonly MODEL_324 = 1;
     static readonly MODEL_324v2 = 2;
+    // op-amp subcircuit imported from SPICE (a SubcircuitModel with the op-amp symbol)
+    static readonly MODEL_SUBCIRCUIT = 3;
 
     private static model741resistances = [50, 25, 1e3, 50e3, 1e3, 5e3, 50e3, 50, 39e3, 7500, 4500];
 
     modelType: number;
+    subcircuitName: string | null = null;
+    subcircuitModel: SubcircuitModel | null = null;
     readonly opheight = 16;
     readonly opwidth = 32;
     curCounts: number[];
@@ -100,9 +107,17 @@ export class OpAmpRealElm extends CompositeElm {
     plusFont: Font;
 
     constructor(xx: number, yy: number);
+    constructor(xx: number, yy: number, subcircuit: string);
     constructor(xa: number, ya: number, xb: number, yb: number, f: number, st: StringTokenizer);
-    constructor(xa: number, ya: number, xb?: number, yb?: number, f?: number, st?: StringTokenizer) {
-        if (st !== undefined) {
+    constructor(xa: number, ya: number, xb?: number | string, yb?: number, f?: number, st?: StringTokenizer) {
+        if (typeof xb === "string") {
+            super(xa, ya);
+            this.noDiagonal = true;
+            this.slewRate = 0.6;
+            this.currentLimit = this.defaultCurrentLimit;
+            this.modelType = OpAmpRealElm.MODEL_SUBCIRCUIT;
+            this.subcircuitName = xb;
+        } else if (st !== undefined) {
             super(xa, ya, xb!, yb!, f!);
             this.noDiagonal = true;
             this.slewRate = parseFloatStrict(st.nextToken());
@@ -125,10 +140,12 @@ export class OpAmpRealElm extends CompositeElm {
 
     private initModel(): void {
         this.flags |= CompositeElm.FLAG_ESCAPE;
+        this.subcircuitModel = null;
         switch (this.modelType) {
             case OpAmpRealElm.MODEL_741:   this.init741(); break;
             case OpAmpRealElm.MODEL_324:   this.init324(); break;
             case OpAmpRealElm.MODEL_324v2: this.init324v2(); break;
+            case OpAmpRealElm.MODEL_SUBCIRCUIT: this.initSubcircuit(); break;
         }
         this.curCounts = new Array(5).fill(0);
         this.setPoints();
@@ -165,21 +182,69 @@ export class OpAmpRealElm extends CompositeElm {
         this.loadComposite(st, OpAmpRealElm.lm324v2ModelString, OpAmpRealElm.lm324v2ExternalNodes);
     }
 
+    // imported op-amp models, which can be chosen in the model list
+    static getSubcircuitModels(): SubcircuitModel[] {
+        return SubcircuitModel.getModelList().filter(m => SubcircuitSymbols.isOpAmpModel(m));
+    }
+
+    private initSubcircuit(): void {
+        const m = SubcircuitModel.getModelWithName(this.subcircuitName!);
+        if (m == null || !SubcircuitSymbols.isOpAmpModel(m)) {
+            // model not available (eg not saved in this circuit): use the 741 so the circuit
+            // still works, and say so in the info box
+            this.init741();
+            return;
+        }
+        this.subcircuitModel = m;
+        // the model's symbol pins are in our post order: -in, +in, out, V+, V-
+        this.loadCompositeXml(m.getElmEntries(), m.symbolNodes!);
+        this.allocNodes();
+    }
+
+    // models may have changed (eg a subcircuit was imported, edited or renamed)
+    // (rebuilt only if the model changed: the circuit must then be analyzed again)
+    updateModels(): void {
+        if (this.modelType !== OpAmpRealElm.MODEL_SUBCIRCUIT ||
+                SubcircuitModel.getModelWithName(this.subcircuitName!) === this.subcircuitModel)
+            return;
+        this.initModel();
+        CircuitElm.app?.needAnalyze();
+    }
+
+    // name of the subcircuit model used, if any (see SubcircuitModel.getModelNamesInUse())
+    getSubcircuitModelName(): string | null {
+        return this.modelType === OpAmpRealElm.MODEL_SUBCIRCUIT ? this.subcircuitName : null;
+    }
+
+    dumpXmlModel(doc: Document): void {
+        if (this.subcircuitModel == null)
+            return;
+        for (const ce of this.compElmList)
+            ce.dumpXmlModel(doc);
+        if (!(this.subcircuitModel.builtin || this.subcircuitModel.dumped))
+            this.subcircuitModel.dumpXml(doc);
+    }
+
     reset(): void {
         super.reset();
         this.curCounts = new Array(5).fill(0);
     }
 
     getCapacitor(): CapacitorElm | null {
-        if (this.modelType === OpAmpRealElm.MODEL_324v2) return null;
+        if (this.modelType === OpAmpRealElm.MODEL_324v2 || this.subcircuitModel != null) return null;
+        if (this.modelType === OpAmpRealElm.MODEL_SUBCIRCUIT)
+            return this.compElmList[20] as CapacitorElm;  // fell back to the 741
         return this.compElmList[this.modelType === OpAmpRealElm.MODEL_741 ? 20 : 4] as CapacitorElm;
     }
 
     dumpXml(doc: Document, elem: Element): void {
+        this.dumpXmlModel(doc);
         super.dumpXml(doc, elem);
         CircuitXMLSerializer.dumpAttr(elem, "slr", this.slewRate);
         CircuitXMLSerializer.dumpAttr(elem, "cl", this.currentLimit);
         CircuitXMLSerializer.dumpAttr(elem, "mt", this.modelType);
+        if (this.modelType === OpAmpRealElm.MODEL_SUBCIRCUIT)
+            CircuitXMLSerializer.dumpAttr(elem, "smo", this.subcircuitName);
     }
 
     dumpXmlState(doc: Document, elem: Element): void {
@@ -192,6 +257,9 @@ export class OpAmpRealElm extends CompositeElm {
         this.slewRate = xml.parseDoubleAttr("slr", this.slewRate);
         this.currentLimit = xml.parseDoubleAttr("cl", this.currentLimit);
         this.modelType = xml.parseIntAttr("mt", this.modelType);
+        this.subcircuitName = xml.parseStringAttr("smo", null);
+        if (this.modelType === OpAmpRealElm.MODEL_SUBCIRCUIT && this.subcircuitName == null)
+            this.modelType = OpAmpRealElm.MODEL_741;
         const voltdiff = xml.parseDoubleAttr("vd", 0);
         this.initModel();
         const cap = this.getCapacitor();
@@ -261,7 +329,10 @@ export class OpAmpRealElm extends CompositeElm {
     getElmType(): string { return "op-amp"; }
 
     getInfo(arr: string[]): void {
-        const type = this.modelType === OpAmpRealElm.MODEL_741 ? "LM741" : "LM324";
+        let type = this.modelType === OpAmpRealElm.MODEL_741 ? "LM741" : "LM324";
+        if (this.modelType === OpAmpRealElm.MODEL_SUBCIRCUIT)
+            type = (this.subcircuitModel != null) ? this.subcircuitName! :
+                Locale.LS("missing: ") + this.subcircuitName + ", LM741";
         arr[0] = "op-amp (" + type + ")";
         arr[1] = "V+ = " + CircuitElm.getVoltageText(this.nodes[1].v);
         arr[2] = "V- = " + CircuitElm.getVoltageText(this.nodes[0].v);
@@ -270,19 +341,38 @@ export class OpAmpRealElm extends CompositeElm {
     }
 
     showPropertiesOnCreate(): boolean { return false; }
+    // model type and subcircuit name of each item of the model list
+    private choiceTypes: number[] = [];
+    private choiceNames: (string | null)[] = [];
+
+    private addModelChoice(c: Choice, label: string, type: number, name: string | null): void {
+        c.add(label);
+        this.choiceTypes.push(type);
+        this.choiceNames.push(name);
+        if (type === this.modelType && (name == null || name === this.subcircuitName))
+            c.select(this.choiceTypes.length - 1);
+    }
+
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo(EditInfo.makeLink("opampreal.html", "Model"), this.modelType);
             ei.choice = new Choice();
-            ei.choice.add("LM741");
+            this.choiceTypes = [];
+            this.choiceNames = [];
+            this.addModelChoice(ei.choice, "LM741", OpAmpRealElm.MODEL_741, null);
+            // hide old 324 model
             if (this.modelType === OpAmpRealElm.MODEL_324) {
-                ei.choice.add("LM324, old");
-                ei.choice.add("LM324, fixed");
-                ei.choice.select(this.modelType);
-            } else {
-                ei.choice.add("LM324");
-                ei.choice.select(this.modelType === OpAmpRealElm.MODEL_741 ? 0 : 1);
-            }
+                this.addModelChoice(ei.choice, "LM324, old", OpAmpRealElm.MODEL_324, null);
+                this.addModelChoice(ei.choice, "LM324, fixed", OpAmpRealElm.MODEL_324v2, null);
+            } else
+                this.addModelChoice(ei.choice, "LM324", OpAmpRealElm.MODEL_324v2, null);
+            // op-amps imported from SPICE
+            for (const m of OpAmpRealElm.getSubcircuitModels())
+                this.addModelChoice(ei.choice, m.name, OpAmpRealElm.MODEL_SUBCIRCUIT, m.name);
+            // keep a missing model in the list so it isn't lost by editing something else
+            if (this.modelType === OpAmpRealElm.MODEL_SUBCIRCUIT && this.subcircuitModel == null)
+                this.addModelChoice(ei.choice, this.subcircuitName + " (" + Locale.LS("missing: ").trim() + ")",
+                    OpAmpRealElm.MODEL_SUBCIRCUIT, this.subcircuitName);
             return ei;
         }
         if (n === 1) {
@@ -290,7 +380,7 @@ export class OpAmpRealElm extends CompositeElm {
             ei.checkbox = new Checkbox("Swap Inputs", (this.flags & this.FLAG_SWAP) !== 0);
             return ei;
         }
-        if (this.modelType === OpAmpRealElm.MODEL_324v2) return null;
+        if (this.modelType === OpAmpRealElm.MODEL_324v2 || this.modelType === OpAmpRealElm.MODEL_SUBCIRCUIT) return null;
         if (n === 2) return new EditInfo("Slew Rate (V/usec)", this.slewRate);
         if (n === 3) return new EditInfo("Output Current Limit (A)", this.currentLimit);
         return null;
@@ -298,9 +388,9 @@ export class OpAmpRealElm extends CompositeElm {
 
     setEditValue(n: number, ei: EditInfo): void {
         if (n === 0) {
-            this.modelType = ei.choice!.getSelectedIndex();
-            if (ei.choice!.getItemCount() === 2 && this.modelType === 1)
-                this.modelType = OpAmpRealElm.MODEL_324v2;
+            const i = ei.choice!.getSelectedIndex();
+            this.modelType = this.choiceTypes[i];
+            this.subcircuitName = this.choiceNames[i];
             this.capValue = 0;
             this.initModel();
             ei.newDialog = true;

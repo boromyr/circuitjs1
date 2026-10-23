@@ -152,6 +152,17 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
         const jfetDefault = new MosfetModel("default-jfet", -4, .00125).setJfet();
         jfetDefault.showBulk = jfetDefault.bodyDiode = false;
         MosfetModel.addDefaultModel("default-jfet", jfetDefault);
+
+        // J201 N-channel JFET, from the Fairchild SPICE model:
+        // .model J201 NJF(Beta=1.304m Lambda=2.4m Vto=-.5961 Cgd=4.48p Cgs=4.442p ...)
+        // SPICE uses Ids = BETA*(Vgs-VTO)^2, this simulator Ids = beta/2*(Vgs-Vt)^2, so beta = 2*BETA.
+        // (junction caps are constant here, SPICE's voltage dependence M/PB is not modeled)
+        const j201 = new MosfetModel("J201", -.5961, 2 * 1.304e-3).setJfet();
+        j201.lambda = 2.4e-3;
+        j201.capGS = 4.442e-12;
+        j201.capGD = 4.48e-12;
+        j201.showBulk = j201.bodyDiode = false;
+        MosfetModel.addDefaultModel("J201", j201);
     }
 
     static addDefaultModel(name: string, dm: MosfetModel): void {

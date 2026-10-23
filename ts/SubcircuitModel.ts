@@ -47,6 +47,10 @@ export class SubcircuitModel {
     dumped:   boolean = false;
     internal: boolean = false;  // don't show in list
     builtin:  boolean = false;  // included by default, don't allow deletion
+    // symbol to draw instances with (see SubcircuitSymbols), or null for a chip box,
+    // and the subcircuit node connected to each pin of the symbol
+    symbol: string | null = null;
+    symbolNodes: number[] | null = null;
 
     static sequenceNumber: number = 0;
     static readonly FLAG_SHOW_LABEL = 1;
@@ -270,6 +274,9 @@ export class SubcircuitModel {
         const names = new Set<string>();
         const scan = (list: any[]) => {
             for (const ce of list) {
+                // subcircuits drawn as a component (see SubcircuitSymbolElm, OpAmpRealElm)
+                const symModel = ce.getSubcircuitModelName?.();
+                if (symModel) names.add(symModel);
                 if (!ce.isSubcircuitElm()) continue;
                 names.add(ce.modelName);
                 if (ce.compElmList) scan(ce.compElmList);
@@ -373,6 +380,10 @@ export class SubcircuitModel {
         CircuitXMLSerializer.dumpAttr(elem, "f",  this.flags);
         CircuitXMLSerializer.dumpAttr(elem, "sx", this.sizeX);
         CircuitXMLSerializer.dumpAttr(elem, "sy", this.sizeY);
+        if (this.symbol != null && this.symbolNodes != null) {
+            CircuitXMLSerializer.dumpAttr(elem, "sym", this.symbol);
+            CircuitXMLSerializer.dumpAttr(elem, "spn", this.symbolNodes.join(" "));
+        }
         const bcs = this.busNodesConsecutive();
         if (bcs) CircuitXMLSerializer.dumpAttr(elem, "bcs", 1);
         for (const ent of this.extList) {
@@ -444,6 +455,13 @@ export class SubcircuitModel {
         this.flags = xml.parseIntAttr("f", this.flags);
         this.sizeX = xml.parseIntAttr("sx", this.sizeX);
         this.sizeY = xml.parseIntAttr("sy", this.sizeY);
+        this.symbol = xml.parseStringAttr("sym", null);
+        this.symbolNodes = null;
+        const pins = xml.parseStringAttr("spn", null);
+        if (this.symbol != null && pins != null)
+            this.symbolNodes = pins.trim().split(/\s+/).map(x => parseIntStrict(x));
+        else
+            this.symbol = null;
         const bcs = xml.parseIntAttr("bcs", 0) !== 0;
         this.extList = [];
 

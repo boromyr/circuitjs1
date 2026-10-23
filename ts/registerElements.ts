@@ -121,6 +121,7 @@ import { SparkGapElm } from "./SparkGapElm";
 import { SquareRailElm } from "./SquareRailElm";
 import { StopTriggerElm } from "./StopTriggerElm";
 import { SubcircuitElm } from "./SubcircuitElm";
+import { SubcircuitSymbolElm } from "./SubcircuitSymbolElm";
 import { SweepElm } from "./SweepElm";
 import { Switch2Elm } from "./Switch2Elm";
 import { SwitchElm } from "./SwitchElm";
@@ -274,6 +275,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("SquareRailElm", SquareRailElm as any);
     ElementFactory.registerClass("StopTriggerElm", StopTriggerElm as any);
     ElementFactory.registerClass("SubcircuitElm", SubcircuitElm as any);
+    ElementFactory.registerClass("SubcircuitSymbolElm", SubcircuitSymbolElm as any);
     ElementFactory.registerClass("SweepElm", SweepElm as any);
     ElementFactory.registerClass("Switch2Elm", Switch2Elm as any);
     ElementFactory.registerClass("SwitchElm", SwitchElm as any);
@@ -457,4 +459,5 @@ export function registerElements(): void {
 
     // registered last — constructor triggers model loading which requires other elements
     CirSim.theApp.register("SubcircuitElm", new SubcircuitElm(0, 0));
+    CirSim.theApp.register("SubcircuitSymbolElm", new SubcircuitSymbolElm(0, 0));
 }

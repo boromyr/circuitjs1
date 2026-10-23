@@ -19,6 +19,7 @@
 
 import { EditDialog } from "./EditDialog";
 import { CirSim } from "./CirSim";
+import { UserModelLibrary } from "./UserModelLibrary";
 import { TransistorModel } from "./TransistorModel";
 import type { TransistorElm } from "./TransistorElm";
 
@@ -38,6 +39,7 @@ export class EditTransistorModelDialog extends EditDialog {
             return false;
         if (this.model.name === null || this.model.name.length === 0)
             this.model.pickName();
+        UserModelLibrary.modelEdited(this.model);
         if (this.transistorElm !== null)
             this.transistorElm.newModelCreated(this.model);
         return true;

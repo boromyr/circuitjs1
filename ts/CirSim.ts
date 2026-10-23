@@ -275,6 +275,9 @@ export class CirSim {
         } catch (e) {
             CirSim.console("Exception: " + e);
         }
+        // device models imported from SPICE .model lines
+        const { UserModelLibrary } = await import('./UserModelLibrary');
+        UserModelLibrary.loadFromStorage();
 
         const { CircuitLoader } = await import('./CircuitLoader');
         this.loader = new CircuitLoader(this, this.sim, this.scopeManager, this.menus);
@@ -690,6 +693,10 @@ export class CirSim {
         if (n.startsWith("SubcircuitElm:")) {
             const ix = n.indexOf(':') + 1;
             const name = n.substring(ix);
+            // subcircuits made for a symbol (eg imported from SPICE) are drawn with it
+            const symElm = HookRegistry.createSymbolSubcircuitElm?.(x1, y1 ?? 0, name);
+            if (symElm != null)
+                return symElm;
             return HookRegistry.createSubcircuitElm!(x1, y1 ?? 0, name);
         }
         return null;
@@ -708,7 +715,8 @@ export class CirSim {
                     ce.model = null;
                     ce.updateModels();
                 }
-            }
+            } else if (ce.getSubcircuitModelName?.() === modelName)
+                ce.updateModels();
         }
         this.needAnalyze();
     }

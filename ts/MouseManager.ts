@@ -19,6 +19,7 @@
 
 import { CirSim } from "./CirSim";
 import { SubcircuitModel } from "./SubcircuitModel";
+import { UserModelLibrary } from "./UserModelLibrary";
 import { CircuitElm } from "./CircuitElm";
 import { Point } from "./Point";
 import { CircuitNode } from "./CircuitNode";
@@ -44,6 +45,7 @@ export class MouseManager {
     static readonly MINPOSTGRABSIZE = 256;
 
     static lastSubcircuitMenuUpdate: number = 0;
+    static lastUserModelMenuUpdate: number = 0;
 
     sim: CirSim;
     ui: any; // UIManager — not statically imported to avoid circular TDZ
@@ -1208,7 +1210,8 @@ export class MouseManager {
 	this.sim.menus.separateAllItem.setEnabled(this.sim.scopeManager.scopeCount > 0);
 
 	// also update the subcircuit menu if necessary
-	if (MouseManager.lastSubcircuitMenuUpdate !== SubcircuitModel.sequenceNumber)
+	if (MouseManager.lastSubcircuitMenuUpdate !== SubcircuitModel.sequenceNumber ||
+		MouseManager.lastUserModelMenuUpdate !== UserModelLibrary.sequenceNumber)
 	    this.sim.composeSubcircuitMenu();
     }
 

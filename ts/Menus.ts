@@ -289,6 +289,9 @@ export class Menus {
     mainMenuBar: HTMLElement = document.createElement('ul');
     elmMenuBar: HTMLElement = document.createElement('ul');
     subcircuitMenuBar: Menu[] | null = null;
+    // per menu (popup, Draw menu): category key (see UserModelLibrary.categoryKeys) -> submenu,
+    // where subcircuits can be listed
+    categoryMenus: Map<string, Menu>[] = [];
 
     hideMenu: boolean = false;
     isMac: boolean = false;
@@ -373,6 +376,8 @@ export class Menus {
         fileMenu.addCommand(iconHtml("image", "Copy Circuit Image to Clipboard"),       "file", "copypng");
         fileMenu.addCommand(iconHtml("image", "Export As SVG..."),                      "file", "exportassvg");
         fileMenu.addCommand(iconHtml("microchip", "Create Subcircuit..."),              "file", "createsubcircuit");
+        fileMenu.addCommand(iconHtml("microchip", "Import Subcircuit From Spice..."),   "file", "importfromspice");
+        fileMenu.addCommand(iconHtml("microchip", "Imported Models..."),               "file", "managemodels");
         fileMenu.addCommand(iconHtml("magic", "Find DC Operating Point"),               "file", "dcanalysis");
         fileMenu.addMenuItem(this.recoverItem,
             iconHtml("back-in-time", "Recover Auto-Save"), "file", "recover");
@@ -686,6 +691,11 @@ export class Menus {
         menu.addSubmenu(subheadHtml + Locale.LS("Analog and Hybrid Chips"), achipMenu);
 
         menu.addSubmenu(subheadHtml + Locale.LS("Subcircuits"), this.subcircuitMenuBar![num]);
+        this.categoryMenus[num] = new Map<string, Menu>([
+            ["subcircuits", this.subcircuitMenuBar![num]], ["passive", passMenu], ["input", inputMenu],
+            ["output", outputMenu], ["active", activeMenu], ["activeBloc", activeBlocMenu], ["gates", gateMenu],
+            ["chips", chipMenu], ["achips", achipMenu],
+        ]);
 
         const otherMenu = new Menu(this.app);
         let mi: any;
