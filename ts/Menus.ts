@@ -516,6 +516,7 @@ export class Menus {
             "Add Relay Contact",            "RelayContactElm",
             "Add Photoresistor",            "LDRElm",
             "Add Thermistor",               "ThermistorNTCElm",
+            "Add Thermoelectric (Peltier)", "PeltierElm",
             "Add Memristor",               "MemristorElm",
             "Add Spark Gap",               "SparkGapElm",
             "Add Fuse",                    "FuseElm",

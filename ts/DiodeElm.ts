@@ -159,6 +159,10 @@ export class DiodeElm extends CircuitElm {
         CircuitElm.drawThickLine(g, this.cathode[0], this.cathode[1]);
     }
 
+    startIteration(): void {
+        this.diode.startIteration(this.nodes[0].v - this.nodes[this.diodeEndNode].v);
+    }
+
     stamp(): void {
         if (this.hasResistance) {
             // create diode from node 0 to internal node
@@ -190,6 +194,16 @@ export class DiodeElm extends CircuitElm {
         arr[3] = "P = " + CircuitElm.getUnitText(this.getPower(), "W");
         if (this.model.oldStyle)
             arr[4] = "Vf = " + CircuitElm.getVoltageText(this.model.fwdrop);
+        if (this.model.junctionCap > 0 || this.model.transitTime > 0) {
+            const vd = this.nodes[0].v - this.nodes[this.diodeEndNode].v;
+            let cj = Diode.calcJunctionCap(vd, this.model.junctionCap, this.model.junctionPot, this.model.junctionExp);
+            if (this.model.transitTime > 0) {
+                const gd = this.model.saturationCurrent * this.model.vdcoef * Math.exp(Math.min(vd * this.model.vdcoef, 80));
+                cj += this.model.transitTime * gd;
+            }
+            const idx = (arr[4] != null) ? 5 : 4;
+            arr[idx] = "C = " + CircuitElm.getUnitText(cj, "F");
+        }
     }
 
     models: DiodeModel[];
@@ -279,5 +293,6 @@ export class DiodeElm extends CircuitElm {
         // stop for huge currents that make simulator act weird
         if (Math.abs(this.current) > 1e12)
             CircuitElm.sim.stop("max current exceeded", this);
+        this.diode.stepFinished(this.nodes[0].v - this.nodes[this.diodeEndNode].v);
     }
 }

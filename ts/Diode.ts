@@ -33,6 +33,7 @@ export class Diode {
     }
 
     setup(model: DiodeModel): void {
+        this.model = model;
         this.leakage = model.saturationCurrent;
         this.zvoltage = model.breakdownVoltage;
         this.vscale = model.vscale;
@@ -61,6 +62,7 @@ export class Diode {
 
     reset(): void {
         this.lastvoltdiff = 0;
+        this.capVolt = this.capCur = this.geqCap = this.ceqCap = 0;
     }
 
     // Electron thermal voltage at SPICE's default temperature of 27 C (300.15 K):
@@ -85,6 +87,51 @@ export class Diode {
     vcrit: number;
     vzcrit: number;
     lastvoltdiff: number = 0;
+
+    // Junction capacitance state (trapezoidal companion model)
+    capVolt: number = 0;     // junction voltage from end of previous time step
+    capCur: number = 0;      // junction cap current from end of previous time step
+    geqCap: number = 0;      // companion conductance
+    ceqCap: number = 0;      // companion current source
+    model: DiodeModel | null = null;   // reference to model for cap params
+
+    // Calculate voltage-dependent junction depletion capacitance (SPICE formula).
+    static calcJunctionCap(vj: number, cj0: number, vj0: number, mj: number): number {
+        if (cj0 <= 0)
+            return 0;
+        const fc = 0.5;
+        if (vj < fc * vj0) {
+            return cj0 / Math.pow(1 - vj / vj0, mj);
+        } else {
+            // linear extrapolation above fc*Vj to avoid singularity
+            return cj0 / Math.pow(1 - fc, 1 + mj) * (1 - fc * (1 + mj) + mj * vj / vj0);
+        }
+    }
+
+    startIteration(voltdiff: number): void {
+        const model = this.model;
+        if (model == null || this.sim.timeStep <= 0)
+            return;
+        if (model.junctionCap > 0 || model.transitTime > 0) {
+            let cj = Diode.calcJunctionCap(voltdiff, model.junctionCap, model.junctionPot, model.junctionExp);
+            // add diffusion capacitance from transit time: Cd = TT * gd
+            if (model.transitTime > 0) {
+                // (exponent limited so a large voltage during convergence can't overflow it)
+                const gd = this.leakage * this.vdcoef * Math.exp(Math.min(voltdiff * this.vdcoef, 80));
+                cj += model.transitTime * gd;
+            }
+            this.geqCap = 2 * cj / this.sim.timeStep;
+            this.ceqCap = -this.geqCap * this.capVolt - this.capCur;
+        }
+    }
+
+    stepFinished(voltdiff: number): void {
+        const model = this.model;
+        if (model != null && (model.junctionCap > 0 || model.transitTime > 0) && this.geqCap > 0) {
+            this.capVolt = voltdiff;
+            this.capCur = this.geqCap * this.capVolt + this.ceqCap;
+        }
+    }
 
     limitStep(vnew: number, vold: number): number {
         let arg: number;
@@ -168,6 +215,11 @@ export class Diode {
             const nc = (eval_ - 1) * this.leakage - geq * voltdiff;
             this.sim.stampConductance(this.nodes[0], this.nodes[1], geq);
             this.sim.stampCurrentSource(this.nodes[0], this.nodes[1], nc);
+            // junction capacitance companion model
+            if (this.geqCap > 0) {
+                this.sim.stampConductance(this.nodes[0], this.nodes[1], this.geqCap);
+                this.sim.stampCurrentSource(this.nodes[0], this.nodes[1], this.ceqCap);
+            }
         } else {
             // Zener diode
 
@@ -194,16 +246,27 @@ export class Diode {
 
             this.sim.stampConductance(this.nodes[0], this.nodes[1], geq);
             this.sim.stampCurrentSource(this.nodes[0], this.nodes[1], nc);
+            // junction capacitance companion model
+            if (this.geqCap > 0) {
+                this.sim.stampConductance(this.nodes[0], this.nodes[1], this.geqCap);
+                this.sim.stampCurrentSource(this.nodes[0], this.nodes[1], this.ceqCap);
+            }
         }
     }
 
     calculateCurrent(voltdiff: number): number {
+        let current: number;
         if (voltdiff >= 0 || this.zvoltage === 0)
-            return this.leakage * (Math.exp(voltdiff * this.vdcoef) - 1);
-        return this.leakage * (
-            Math.exp(voltdiff * this.vdcoef)
-            - Math.exp((-voltdiff - this.zoffset) * Diode.vzcoef)
-            - 1
-        );
+            current = this.leakage * (Math.exp(voltdiff * this.vdcoef) - 1);
+        else
+            current = this.leakage * (
+                Math.exp(voltdiff * this.vdcoef)
+                - Math.exp((-voltdiff - this.zoffset) * Diode.vzcoef)
+                - 1
+            );
+        // add junction capacitance current from companion model
+        if (this.geqCap > 0)
+            current += this.geqCap * voltdiff + this.ceqCap;
+        return current;
     }
 }
