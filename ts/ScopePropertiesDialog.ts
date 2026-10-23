@@ -612,7 +612,7 @@ export class ScopePropertiesDialog extends Dialog {
     private scrollbarChanged(): void {
         const scope = this.scope;
         const newsp = Math.pow(2, 10 - Number(this.speedBar.value)) | 0;
-        if (scope.speed !== newsp) scope.setSpeed(newsp);
+        if (scope.speed !== newsp) this.app.scopeManager.setScopeSpeed(scope, newsp);
         this.setScopeSpeedLabel();
     }
 

@@ -319,6 +319,50 @@ td.gwt-MenuItem.open > .menuDropdown {
     display: block;
 }
 
+/* scale sliders for the active scope, at the bottom of the side panel */
+.scopeControls {
+    padding-top: 6px;
+    padding-bottom: 4px;
+    border-top: 1px solid #bbb;
+    font-size: 12px;
+}
+.scopeControlsTitle {
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 0 4px;
+}
+.scopeControlsRow {
+    margin-top: 4px;
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+}
+.scopeControlsCaption {
+    justify-content: space-between;
+}
+.scopeControlsValue {
+    font-weight: 700;
+    white-space: nowrap;
+    margin-left: 4px;
+}
+.scopeControlsChannel {
+    margin-right: 6px;
+    font-size: 11px;
+    color: inherit;
+    background-color: inherit;
+}
+.scopeControlsEdge {
+    font-size: 11px;
+    padding: 1px 6px;
+    white-space: nowrap;
+    color: inherit;
+    background-color: inherit;
+    border: 1px solid #999;
+    border-radius: 3px;
+}
+
 /* ---- Mobile hamburger triggers (hidden on desktop) ---- */
 /* From war/circuitjs1/style.css                          */
 

@@ -938,6 +938,7 @@ export class MouseManager {
 	if (this.ui.isReadOnly() || this.sim.modalDialogIsShowing())
 	    return;
 	this.menuElm = this.mouseElm;
+	this.sim.scopeManager.setActiveScopeFromMouse(this.mouseElm);
 	this.sim.scopeManager.menuScope = -1;
 	this.sim.scopeManager.menuPlot  = -1;
 	if (this.sim.scopeManager.scopeSelected !== -1) {
@@ -1078,6 +1079,7 @@ export class MouseManager {
 
 	// set mouseElm in case we are on mobile
 	this.mouseSelect(e);
+	this.sim.scopeManager.setActiveScopeFromMouse(this.mouseElm);
 
 	this.mouseDragging = true;
 	this.didSwitch = false;
