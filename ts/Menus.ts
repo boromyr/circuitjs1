@@ -271,6 +271,8 @@ export class Menus {
     voltsCheckItem           = new CheckItem(true);
     powerCheckItem           = new CheckItem();
     smallGridCheckItem       = new CheckItem();
+    showGridCheckItem        = new CheckItem(true);
+    gridLinesCheckItem       = new CheckItem();
     crossHairCheckItem       = new CheckItem();
     showValuesCheckItem      = new CheckItem(true);
     conductanceCheckItem     = new CheckItem();
@@ -437,6 +439,18 @@ export class Menus {
         //optMenu.addCheckItem(this.conductanceCheckItem, "Show Conductance");
         optMenu.addCheckItem(this.smallGridCheckItem, "Small Grid");
         this.smallGridCheckItem.setCommand({ execute: () => this.app.setGrid() });
+        optMenu.addCheckItem(this.showGridCheckItem, "Show Grid");
+        this.showGridCheckItem.setCommand({ execute: () =>
+            this.app.ui?.setOptionInStorage("showGrid", this.showGridCheckItem.getState()) });
+        optMenu.addCheckItem(this.gridLinesCheckItem, "Grid Lines");
+        this.gridLinesCheckItem.setCommand({ execute: () => {
+            this.app.ui?.setOptionInStorage("gridLines", this.gridLinesCheckItem.getState());
+            // choosing a style also shows the grid
+            if (!this.showGridCheckItem.getState()) {
+                this.showGridCheckItem.setState(true);
+                this.app.ui?.setOptionInStorage("showGrid", true);
+            }
+        }});
         optMenu.addCheckItem(this.toolbarCheckItem, "Toolbar");
         this.toolbarCheckItem.setCommand({ execute: () => this.app.ui?.setToolbar() });
         optMenu.addCheckItem(this.showPropsOnCreateCheckItem, "Show Properties On Create");

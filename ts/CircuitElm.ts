@@ -46,6 +46,8 @@ export abstract class CircuitElm implements Editable {
     static colorScale: Color[];
     static currentMult: number;
     static powerMult: number;
+    // milliseconds since the last frame, negative for electron flow (set with currentMult)
+    static dotTimeStep: number = 0;
 
     // scratch points for convenience
     static ps1: Point;
@@ -496,6 +498,11 @@ export abstract class CircuitElm implements Editable {
     snapGrid(z: number): number { return CircuitElm.app.snapGrid(z); }
 
     readonly CURRENT_TOO_FAST = 100;
+    // dot speed scale (pixels per millisecond), exponent of the speed
+    // curve above it, and the knee current at the default slider value
+    static readonly DOT_SPEED = .0134;
+    static readonly DOT_EXP = .2;
+    static readonly DOT_KNEE = 1e-6;
 
     // draw current dots from point a to b
     drawDots(g: Graphics, pa: Point, pb: Point, pos: number): void {
@@ -523,11 +530,16 @@ export abstract class CircuitElm implements Editable {
         pos %= ds;
         if (pos < 0)
             pos += ds;
+        // round dots, about the same area as the old 4x4 squares, filled as one path
+        const ctx = g.context;
+        ctx.beginPath();
         for (let di = pos; di < dn; di += ds) {
             const x0 = Math.trunc(pa.x + di*dx/dn);
             const y0 = Math.trunc(pa.y + di*dy/dn);
-            g.fillRect(x0-2, y0-2, 4, 4);
+            ctx.moveTo(x0+2.3, y0);
+            ctx.arc(x0, y0, 2.3, 0, 2*Math.PI);
         }
+        ctx.fill();
     }
 
     addCurCount(c: number, a: number): number {
@@ -1222,7 +1234,16 @@ export abstract class CircuitElm implements Editable {
     updateDotCountImpl(cur: number, cc: number): number {
         if (!CircuitElm.app.simIsRunning())
             return cc;
-        const cadd = cur * CircuitElm.currentMult;
+        // the dot speed grows with a low power of the current (between linear and
+        // logarithmic), so a branch carrying 1000 times the current of another moves
+        // about 5 times faster instead of being a blur.  Below DOT_KNEE (scaled by
+        // the Current Speed slider) the speed is still proportional to the current,
+        // so leakage currents keep looking still.
+        const a = Math.abs(cur) * CircuitElm.currentMult;
+        let cadd = CircuitElm.dotTimeStep * CircuitElm.DOT_SPEED *
+            (Math.pow(1 + a/CircuitElm.DOT_KNEE, CircuitElm.DOT_EXP) - 1);
+        if (cur < 0)
+            cadd = -cadd;
         if (cadd > 6 || cadd < -6)
             return this.CURRENT_TOO_FAST;
         if (cc === this.CURRENT_TOO_FAST)

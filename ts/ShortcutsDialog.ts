@@ -181,7 +181,7 @@ export class ShortcutsDialog extends Dialog {
             const box = this.textBoxes[i];
             const str = this.shortcuts[i];
             if (str.length === 0) {
-                box.style.color = "black";
+                box.style.color = "";
                 continue;
             }
             const c = str.charAt(0);
@@ -193,7 +193,7 @@ export class ShortcutsDialog extends Dialog {
                 other.style.color = "red";
                 result = true;
             } else
-                box.style.color = "black";
+                box.style.color = "";
 
             boxForShortcut.set(c, box);
         }

@@ -938,35 +938,81 @@ export class Scope {
         // In triggered mode, only draw up to the current write pointer.
         // Data beyond that is stale (old circular buffer contents).
         const drawWidth = this.validDataCount(plot, ipa, this.rect.width);
-        let ox = -1, oy = -1;
-        let i;
-        for (i = 0; i !== drawWidth; i++) {
+        // One antialiased path through the unrounded values, so a signal is a smooth
+        // line on HiDPI canvases instead of a staircase of whole pixels.  Each column
+        // holds the min and max of its samples: the line goes through the middle of
+        // the column, and the vertical min-max span is drawn only where the line to
+        // the neighbouring columns doesn't already cover it (a fast edge, a sharp
+        // peak, or many cycles per pixel).
+        const ylo = new Float64Array(drawWidth);
+        const yhi = new Float64Array(drawWidth);
+        const valid = new Uint8Array(drawWidth);
+        for (let i = 0; i !== drawWidth; i++) {
             const ip = (i + ipa) & (this.scopePointCount - 1);
-            const minvy = Math.round(plot.gridMult * (minV[ip] + plot.plotOffset));
-            const maxvy = Math.round(plot.gridMult * (maxV[ip] + plot.plotOffset));
-            if (minvy <= maxy) {
-                if (minvy < curMinRangeLo || maxvy > minRangeHi) {
-                    // value outside min range; no need to rescale later
-                    this.reduceRange[plot.units] = false;
-                    curMinRangeLo = -1000;
-                    minRangeHi = 1000;
-                }
-                if (ox !== -1) {
-                    if (minvy === oy && maxvy === oy)
-                        continue;
-                    g.drawLine(ox, maxy - oy, i, maxy - oy);
-                    ox = oy = -1;
-                }
-                if (minvy === maxvy) {
-                    ox = i;
-                    oy = minvy;
-                    continue;
-                }
-                g.drawLine(i, maxy - minvy, i, maxy - maxvy);
+            const vmin = plot.gridMult * (minV[ip] + plot.plotOffset);
+            const vmax = plot.gridMult * (maxV[ip] + plot.plotOffset);
+            const minvy = Math.round(vmin);
+            const maxvy = Math.round(vmax);
+            if (minvy > maxy)
+                continue;
+            if (minvy < curMinRangeLo || maxvy > minRangeHi) {
+                // value outside min range; no need to rescale later
+                this.reduceRange[plot.units] = false;
+                curMinRangeLo = -1000;
+                minRangeHi = 1000;
             }
+            valid[i] = 1;
+            ylo[i] = maxy - vmin;
+            yhi[i] = maxy - vmax;
         }
-        if (ox !== -1)
-            g.drawLine(ox, maxy - oy, i - 1, maxy - oy);
+        const ctx = g.context;
+        ctx.save();
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        let penDown = false;
+        let py = 0;
+        for (let i = 0; i !== drawWidth; i++) {
+            if (!valid[i]) {
+                penDown = false;
+                continue;
+            }
+            const y = (ylo[i] + yhi[i]) / 2;
+            // range the line to the neighbours' midpoints sweeps through this column
+            let cover0 = y, cover1 = y;
+            if (i > 0 && valid[i - 1]) {
+                const h = (y + (ylo[i - 1] + yhi[i - 1]) / 2) / 2;
+                cover0 = Math.min(cover0, h);
+                cover1 = Math.max(cover1, h);
+            }
+            if (i + 1 < drawWidth && valid[i + 1]) {
+                const h = (y + (ylo[i + 1] + yhi[i + 1]) / 2) / 2;
+                cover0 = Math.min(cover0, h);
+                cover1 = Math.max(cover1, h);
+            }
+            if (yhi[i] >= cover0 - 1 && ylo[i] <= cover1 + 1) {
+                if (penDown)
+                    ctx.lineTo(i, y);
+                else
+                    ctx.moveTo(i, y);
+                py = y;
+            } else {
+                // enter the span at the end nearer the previous point, leave from the other
+                let a = ylo[i], b = yhi[i];
+                if (penDown && Math.abs(py - yhi[i]) < Math.abs(py - ylo[i])) {
+                    a = yhi[i];
+                    b = ylo[i];
+                }
+                if (penDown)
+                    ctx.lineTo(i, a);
+                else
+                    ctx.moveTo(i, a);
+                ctx.lineTo(i, b);
+                py = b;
+            }
+            penDown = true;
+        }
+        ctx.stroke();
+        ctx.restore();
     }
 
     static clearCursorInfo(): void {

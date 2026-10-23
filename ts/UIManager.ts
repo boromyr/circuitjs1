@@ -59,8 +59,41 @@ const KEY_X = 88, KEY_Y = 89, KEY_Z = 90;
 export class Scrollbar {
     static readonly HORIZONTAL = 1;
     private static readonly HMARGIN    = 2;
-    private static readonly SCROLLHEIGHT = 14;
-    private static readonly BARMARGIN  = 3;
+    private static readonly SCROLLHEIGHT = 22;
+    private static readonly ARROWWIDTH = 12;   // clickable step area at each end
+    private static readonly TRACKWIDTH = 4;
+    private static readonly THUMBRADIUS = 9;   // outer ring of the thumb
+    private static readonly DOTRADIUS = 5;     // accent dot inside the thumb (grows on hover, shrinks when pressed)
+
+    // colors, overridable by the page stylesheet (see style.css and dark-theme.css); defaults
+    // follow the Windows 11 light theme
+    private static colors: { fg: string, disabled: string, track: string, bar: string,
+                             thumb: string, thumbBorder: string } | null = null;
+
+    private static loadColors(): NonNullable<typeof Scrollbar.colors> {
+        if (Scrollbar.colors)
+            return Scrollbar.colors;
+        const style = getComputedStyle(document.documentElement);
+        // don't keep the defaults if the stylesheet hasn't been applied yet
+        let loaded = false;
+        const css = (name: string, def: string): string => {
+            const v = style.getPropertyValue(name).trim();
+            if (v.length > 0)
+                loaded = true;
+            return v.length > 0 ? v : def;
+        };
+        const colors = {
+            fg:          css("--cirjs-scrollbar-fg", "#5d5d5d"),
+            disabled:    css("--cirjs-scrollbar-disabled", "#c4c4c4"),
+            track:       css("--cirjs-scrollbar-track", "#8a8a8a"),
+            bar:         css("--cirjs-scrollbar-bar", "#005fb8"),
+            thumb:       css("--cirjs-scrollbar-thumb", "#ffffff"),
+            thumbBorder: css("--cirjs-scrollbar-thumb-border", "#d6d6d6"),
+        };
+        if (loaded)
+            Scrollbar.colors = colors;
+        return colors;
+    }
 
     element: HTMLCanvasElement;
     private g: CanvasRenderingContext2D;
@@ -69,7 +102,9 @@ export class Scrollbar {
     private val: number;
     private stepSize: number = 0;
     private dragging: boolean = false;
+    private hover: boolean = false;
     private enabled: boolean = true;
+    private pixelRatio: number = 0;
     private command: (() => void) | null = null;
     attachedElm: any = null;
     private vpw: number;
@@ -83,9 +118,8 @@ export class Scrollbar {
         if (cmd) this.command = cmd;
         if (elm)  this.attachedElm = elm;
 
+        // the backing store size is set in draw(), at device resolution
         const can = document.createElement('canvas');
-        can.width  = this.vpw;
-        can.height = Scrollbar.SCROLLHEIGHT;
         can.style.width   = this.vpw + 'px';
         can.style.height  = Scrollbar.SCROLLHEIGHT + 'px';
         can.style.display = 'block';
@@ -99,7 +133,7 @@ export class Scrollbar {
         });
         can.addEventListener('mousemove', (e) => {
             e.preventDefault();
-            if (this.dragging && e.buttons === 0) { this.dragging = false; return; }
+            if (this.dragging && e.buttons === 0) { this.dragging = false; this.draw(); return; }
             this.doMouseMove(e.offsetX);
         });
         can.addEventListener('mouseup', (e) => {
@@ -107,16 +141,22 @@ export class Scrollbar {
             if (this.enabled && this.dragging) {
                 this.val = this.calcValueFromPos(e.offsetX);
                 this.dragging = false;
+                // released outside: the mouseout was skipped while dragging
+                this.hover = e.offsetX >= 0 && e.offsetX < this.vpw && e.offsetY >= 0 && e.offsetY < Scrollbar.SCROLLHEIGHT;
                 this.draw();
                 if (this.command) this.command();
             }
         });
         can.addEventListener('mouseout', () => {
             if (this.dragging) return;
+            this.hover = false;
+            this.draw();
             if (this.enabled && this.attachedElm?.isMouseElm())
                 CirSim.theApp.mouse.setMouseElm(null);
         });
         can.addEventListener('mouseover', () => {
+            this.hover = true;
+            this.draw();
             if (this.enabled && this.attachedElm)
                 CirSim.theApp.mouse.setMouseElm(this.attachedElm);
         });
@@ -153,12 +193,11 @@ export class Scrollbar {
         if (!this.enabled) return;
         const vpw = this.vpw;
         const hm = Scrollbar.HMARGIN;
-        const sh = Scrollbar.SCROLLHEIGHT;
-        const bm = Scrollbar.BARMARGIN;
+        const aw = Scrollbar.ARROWWIDTH;
         const step = this.stepSize > 0 ? Math.max(1, Math.round(this.stepSize)) : 1;
-        if (x < hm + sh) {
+        if (x < hm + aw) {
             this.val = this.snapToStep(Math.max(this.min, this.val - step));
-        } else if (x > vpw - hm - sh) {
+        } else if (x > vpw - hm - aw) {
             this.val = this.snapToStep(Math.min(this.max, this.val + step));
         } else {
             this.val = this.calcValueFromPos(x);
@@ -175,12 +214,13 @@ export class Scrollbar {
         if (this.command) this.command();
     }
 
+    // x range travelled by the thumb centre
+    private trackStart(): number { return Scrollbar.HMARGIN + Scrollbar.ARROWWIDTH + Scrollbar.THUMBRADIUS; }
+    private trackEnd(): number { return this.vpw - Scrollbar.HMARGIN - Scrollbar.ARROWWIDTH - Scrollbar.THUMBRADIUS; }
+
     private calcValueFromPos(x: number): number {
-        const vpw = this.vpw;
-        const hm = Scrollbar.HMARGIN;
-        const sh = Scrollbar.SCROLLHEIGHT;
-        const bm = Scrollbar.BARMARGIN;
-        let v = this.min + (this.max - this.min) * (x - hm - sh - bm) / (vpw - 2 * (hm + sh + bm));
+        const x0 = this.trackStart(), x1 = this.trackEnd();
+        let v = this.min + (this.max - this.min) * (x - x0) / (x1 - x0);
         v = Math.max(this.min, Math.min(this.max, v));
         return this.snapToStep(Math.round(v));
     }
@@ -200,57 +240,86 @@ export class Scrollbar {
         const vpw = this.vpw;
         const sh  = Scrollbar.SCROLLHEIGHT;
         const hm  = Scrollbar.HMARGIN;
-        const bm  = Scrollbar.BARMARGIN;
+        const aw  = Scrollbar.ARROWWIDTH;
+        const colors = Scrollbar.loadColors();
 
-        g.fillStyle = '#ffffff';
-        g.fillRect(0, 0, vpw, sh);
+        // draw in CSS pixels on a backing store at device resolution, so it stays sharp
+        // with display scaling; re-checked on every draw since browser zoom changes it
+        const ratio = window.devicePixelRatio || 1;
+        if (ratio !== this.pixelRatio) {
+            this.pixelRatio = ratio;
+            this.element.width  = Math.round(vpw * ratio);
+            this.element.height = Math.round(sh * ratio);
+        }
+        g.setTransform(ratio, 0, 0, ratio, 0, 0);
+        g.clearRect(0, 0, vpw, sh);
+        g.lineCap = 'round';
+        g.lineJoin = 'round';
+        const cy = sh / 2;
 
-        g.strokeStyle = this.enabled ? '#000000' : 'lightgrey';
-        g.lineWidth = 1.0;
-
-        // left arrow
+        // step chevrons
+        g.strokeStyle = this.enabled ? colors.fg : colors.disabled;
+        g.lineWidth = 1.5;
         g.beginPath();
-        g.moveTo(hm + sh - 3, 0);
-        g.lineTo(hm, sh / 2);
-        g.lineTo(hm + sh - 3, sh);
-        // right arrow
-        g.moveTo(vpw - hm - sh + 3, 0);
-        g.lineTo(vpw - hm, sh / 2);
-        g.lineTo(vpw - hm - sh + 3, sh);
+        let ax = hm + aw / 2;
+        g.moveTo(ax + 2, cy - 4);
+        g.lineTo(ax - 2, cy);
+        g.lineTo(ax + 2, cy + 4);
+        ax = vpw - hm - aw / 2;
+        g.moveTo(ax - 2, cy - 4);
+        g.lineTo(ax + 2, cy);
+        g.lineTo(ax - 2, cy + 4);
         g.stroke();
 
-        if (this.enabled) {
-            // grey track
-            g.strokeStyle = 'grey';
-            g.lineWidth = 5.0;
-            g.beginPath();
-            g.moveTo(hm + sh + bm, sh / 2);
-            g.lineTo(vpw - hm - sh - bm, sh / 2);
-            g.stroke();
+        // track, with the part up to the thumb filled in the accent color
+        const x0 = this.trackStart(), x1 = this.trackEnd();
+        const p = x0 + (x1 - x0) * (this.val - this.min) / (this.max - this.min);
+        g.lineWidth = Scrollbar.TRACKWIDTH;
+        g.strokeStyle = this.enabled ? colors.track : colors.disabled;
+        g.beginPath();
+        g.moveTo(p, cy);
+        g.lineTo(x1, cy);
+        g.stroke();
+        let accent = colors.disabled;
+        if (this.enabled)
+            accent = (this.attachedElm?.needsHighlight())
+                ? (CircuitElm.selectColor?.getHexValue() ?? colors.bar) : colors.bar;
+        g.strokeStyle = accent;
+        g.beginPath();
+        g.moveTo(x0, cy);
+        g.lineTo(p, cy);
+        g.stroke();
 
-            const p = hm + sh + bm +
-                (vpw - 2 * (hm + sh + bm)) * (this.val - this.min) / (this.max - this.min);
-
-            // red (or highlight) filled portion
-            g.strokeStyle = (this.attachedElm?.needsHighlight())
-                ? (CircuitElm.selectColor?.getHexValue() ?? 'red') : 'red';
-            g.beginPath();
-            g.moveTo(hm + sh + bm, sh / 2);
-            g.lineTo(p, sh / 2);
-            g.stroke();
-
-            // handle: white fill with black border
-            g.strokeStyle = '#000000';
-            g.lineWidth = 1.0;
-            g.fillStyle = '#ffffff';
-            g.fillRect(p - 2, 2, 5, sh - 4);
-            g.strokeRect(p - 2, 2, 5, sh - 4);
-        }
+        // thumb: a ring in the control color around an accent dot
+        g.fillStyle = colors.thumbBorder;
+        g.beginPath();
+        g.arc(p, cy, Scrollbar.THUMBRADIUS, 0, 2 * Math.PI);
+        g.fill();
+        g.fillStyle = colors.thumb;
+        g.beginPath();
+        g.arc(p, cy, Scrollbar.THUMBRADIUS - 1, 0, 2 * Math.PI);
+        g.fill();
+        const dr = Scrollbar.DOTRADIUS;
+        const dot = !this.enabled ? dr : this.dragging ? dr - 1 : this.hover ? dr + 1.5 : dr;
+        g.fillStyle = accent;
+        g.beginPath();
+        g.arc(p, cy, dot, 0, 2 * Math.PI);
+        g.fill();
     }
+
+    // one step every mouse notch; a touchpad's small steps add up
+    private wheelSteps: number = 0;
 
     onMouseWheel(e: WheelEvent): void {
         e.preventDefault();
-        if (this.enabled) this.setValue(this.val + Math.round(ScrollValuePopup.normalizeWheelDelta(e) / 3));
+        if (!this.enabled) return;
+        this.wheelSteps += ScrollValuePopup.normalizeWheelDelta(e) / ScrollValuePopup.WHEEL_NOTCH;
+        // (a tolerance, so ten 1/10 steps of a touchpad make a whole one)
+        const n = Math.trunc(this.wheelSteps + Math.sign(this.wheelSteps) * 1e-9);
+        if (n !== 0) {
+            this.wheelSteps -= n;
+            this.setValue(this.val + n);
+        }
     }
 
     getValue(): number { return this.val; }
@@ -631,6 +700,8 @@ export class UIManager {
         this.menus.showPropsOnCreateCheckItem.setState(
             this.getOptionFromStorage("showPropsOnCreate", this.menus.toolbarCheckItem.getState()));
         this.menus.crossHairCheckItem.setState(this.getOptionFromStorage("crossHair", false));
+        this.menus.showGridCheckItem.setState(this.getOptionFromStorage("showGrid", true));
+        this.menus.gridLinesCheckItem.setState(this.getOptionFromStorage("gridLines", false));
         this.menus.euroResistorCheckItem.setState(euroSetting);
         this.menus.euroResistorCheckItem.setCommand({
             execute: () => {
@@ -1097,9 +1168,8 @@ export class UIManager {
                 const inc = sysTime - this.lastTime;
                 let c = this.currentBar.getValue();
                 c = Math.exp(c / 3.5 - 14.2);
-                CircuitElm.currentMult = 1.7 * inc * c;
-                if (!this.menus.conventionCheckItem.getState())
-                    CircuitElm.currentMult = -CircuitElm.currentMult;
+                CircuitElm.currentMult = c;
+                CircuitElm.dotTimeStep = this.menus.conventionCheckItem.getState() ? inc : -inc;
             }
             this.lastTime = sysTime;
         } else {
@@ -1128,6 +1198,8 @@ export class UIManager {
         g.setColor(Color.white);
 
         const scale = UIManager.devicePixelRatio();
+        if (this.menus.showGridCheckItem.getState())
+            this.drawGrid(scale);
         this.cvcontext.setTransform(
             this.app.transform[0] * scale, 0, 0,
             this.app.transform[3] * scale,
@@ -1291,6 +1363,60 @@ export class UIManager {
         g.setFont(CircuitElm.unitsFont);
         g.setColor(Color.yellow);
         g.drawString("exception, see console!", x, this.canvasHeight - 10);
+    }
+
+    // the snap grid under the circuit, like the schematic editor of KiCad: a dot at each grid
+    // point, or thin lines through them (Options > Grid Lines).  Drawn in screen pixels so it
+    // stays sharp at any zoom; when zoomed out so far that it would crowd together, only every
+    // 2nd, 4th... grid point is used.
+    static readonly GRID_MIN_SPACING = 8;   // CSS pixels between the dots drawn
+
+    drawGrid(scale: number): void {
+        const ctx = this.cvcontext;
+        const transform = this.app.transform;
+        const zoom = transform[0];
+        const step = this.app.gridSize * zoom;
+        if (!(step > 0))
+            return;
+        let every = 1;
+        while (step * every < UIManager.GRID_MIN_SPACING)
+            every *= 2;
+        const spacing = step * every;
+        const w = this.app.circuitArea.width, h = this.app.circuitArea.height;
+        // first visible grid point, in grid units (a multiple of "every", so the coarser
+        // grid keeps the same points while panning)
+        const unit = this.app.gridSize * every;
+        const i0 = Math.ceil(-transform[4] / zoom / unit);
+        const j0 = Math.ceil(-transform[5] / zoom / unit);
+        const x0 = transform[4] + i0 * unit * zoom, y0 = transform[5] + j0 * unit * zoom;
+        const white = this.menus.printableCheckItem.getState();
+        ctx.setTransform(scale, 0, 0, scale, 0, 0);
+        if (this.menus.gridLinesCheckItem.getState()) {
+            // one device pixel wide, on pixel centers so they aren't blurred over two pixels
+            ctx.strokeStyle = white ? "#e0e0e0" : "#262626";
+            ctx.lineWidth = 1 / scale;
+            ctx.beginPath();
+            for (let x = x0; x < w; x += spacing) {
+                const px = (Math.floor(x * scale) + .5) / scale;
+                ctx.moveTo(px, 0);
+                ctx.lineTo(px, h);
+            }
+            for (let y = y0; y < h; y += spacing) {
+                const py = (Math.floor(y * scale) + .5) / scale;
+                ctx.moveTo(0, py);
+                ctx.lineTo(w, py);
+            }
+            ctx.stroke();
+            return;
+        }
+        // dots a bit bigger when zoomed in
+        const d = Math.max(1.2, Math.min(2.2, zoom * 1.5));
+        ctx.fillStyle = white ? "#a8a8a8" : "#6a6a6a";
+        ctx.beginPath();
+        for (let y = y0; y < h; y += spacing)
+            for (let x = x0; x < w; x += spacing)
+                ctx.rect(x - d / 2, y - d / 2, d, d);
+        ctx.fill();
     }
 
     drawBottomArea(g: Graphics): void {

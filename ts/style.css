@@ -13,6 +13,44 @@ body, table td, select, button {
     font-size: small;
 }
 
+/* Colors read by the sliders (Scrollbar in UIManager.ts) when drawing; Windows 11 light
+   theme.  dark-theme.css overrides these */
+:root {
+    --cirjs-scrollbar-fg: #5d5d5d;
+    --cirjs-scrollbar-disabled: #c4c4c4;
+    --cirjs-scrollbar-track: #8a8a8a;
+    --cirjs-scrollbar-bar: #005fb8;
+    --cirjs-scrollbar-thumb: #ffffff;
+    --cirjs-scrollbar-thumb-border: #d6d6d6;
+}
+
+/* Icon toolbar (Toolbar.ts) and subcircuit bar (SubcircuitBar.ts); dark-theme.css overrides these */
+.cirjs-toolbar {
+    background-color: #f8f8f8;
+    border-color: #ccc;
+}
+.cirjs-toolbar-button, .cirjs-toolbar-variant, .cirjs-toolbar-label {
+    color: #333;
+}
+/* real :hover only (see the menu rules below), so a tap doesn't leave it on */
+@media (hover: hover) {
+    .cirjs-toolbar-button:hover {
+        color: #007bff;
+    }
+}
+.cirjs-toolbar-button-active {
+    color: #007bff;
+    background-color: #e6f7ff;
+}
+.palette-container {
+    background-color: #ffffff;
+    border-color: #ccc;
+}
+.subcircuitBar {
+    background: rgba(248,248,248,0.85);
+    border-bottom-color: #ccc;
+}
+
 /* ---- Utility classes (from circuitjs.html) ---- */
 
 .disabled {
