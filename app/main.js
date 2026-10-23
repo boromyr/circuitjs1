@@ -343,6 +343,10 @@ function createWindow () {
       windows.splice(i, 1);
   })
 
+  // The plot windows must stay scriptable by the simulator page (it draws into them): with
+  // Electron 45 a child window no longer gets these from its opener, and window.open()
+  // returned null ("could not open the FFT window (popup blocked?)").
+  const PLOT_WEB_PREFERENCES = { sandbox: false, contextIsolation: false };
   mainWindow.webContents.setWindowOpenHandler(({ frameName }) => {
 	// Bode plot window (war/bodeplot.js): a blank, same-origin window that the simulator
 	// page fills and redraws itself.  Not a child of the simulator window, so activating the
@@ -353,7 +357,8 @@ function createWindow () {
 	    minWidth: 480,
 	    minHeight: 320,
 	    backgroundColor: '#1e1e1e',
-	    autoHideMenuBar: true
+	    autoHideMenuBar: true,
+	    webPreferences: PLOT_WEB_PREFERENCES
 	  } };
 	}
 	// FFT window (war/fftplot.js), made the same way
@@ -363,7 +368,8 @@ function createWindow () {
 	    minWidth: 560,
 	    minHeight: 360,
 	    backgroundColor: '#1e1e1e',
-	    autoHideMenuBar: true
+	    autoHideMenuBar: true,
+	    webPreferences: PLOT_WEB_PREFERENCES
 	  } };
 	}
 	// new windows are handled via IPC (window.newWindow); deny everything else
