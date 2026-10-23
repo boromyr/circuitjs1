@@ -419,6 +419,8 @@ export class Menus {
         scopesMenu.addMenuItem(this.unstackAllItem,  iconHtml("columns",        "Unstack All"),  "scopes", "unstackAll");
         scopesMenu.addMenuItem(this.combineAllItem,  iconHtml("object-group",   "Combine All"),  "scopes", "combineAll");
         scopesMenu.addMenuItem(this.separateAllItem, iconHtml("object-ungroup", "Separate All"), "scopes", "separateAll");
+        scopesMenu.addCommand(iconHtml("chart-line", "Bode Plot..."),    "scopes", "bodeplot");
+        scopesMenu.addCommand(iconHtml("chart-line", "FFT Spectrum..."), "scopes", "fftplot");
 
         // ---- Options menu ----
         const optMenu = new Menu(this.app);
@@ -472,6 +474,8 @@ export class Menus {
         this.addTopItem(this.menuBarRow, Locale.LS("Scopes"),  scopesMenu);
         this.addTopItem(this.menuBarRow, Locale.LS("Options"), optMenu);
         this.addTopItem(this.menuBarRow, Locale.LS("Tools"),   toolsMenu);
+        this.addTopCommand(this.menuBarRow, Locale.LS("Bode"), "scopes", "bodeplot");
+        this.addTopCommand(this.menuBarRow, Locale.LS("FFT"),  "scopes", "fftplot");
 
         // ---- Element right-click context menu ----
         this.buildElmMenuBar();
@@ -789,6 +793,25 @@ export class Menus {
     // ---- Private helpers ----
 
     // Add a top-level item to the horizontal menu bar (clicking toggles the dropdown).
+    // a menu bar item without a dropdown, that runs a command when clicked
+    private addTopCommand(row: HTMLTableRowElement, label: string, menuName: string, cmdName: string): HTMLElement {
+        const td = document.createElement('td');
+        td.className = 'gwt-MenuItem';
+        td.setAttribute('role', 'menuitem');
+        td.textContent = label;
+        td.addEventListener('click', e => {
+            e.stopPropagation();
+            closeAllMenus();
+            this.app.commands.menuPerformed(menuName, cmdName);
+        });
+        td.addEventListener('mouseover', e => {
+            if (anyMenuOpen())
+                closeAllMenus();
+        });
+        row.appendChild(td);
+        return td;
+    }
+
     private addTopItem(row: HTMLTableRowElement, label: string, menu: Menu): HTMLElement {
         const td = document.createElement('td');
         td.className = 'gwt-MenuItem';

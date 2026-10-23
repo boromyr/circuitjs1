@@ -12,6 +12,9 @@ import { HookRegistry } from "./HookRegistry";
 import { Locale } from "./Locale";
 import * as LZString from "lz-string";
 import "./canvas2svg.js";
+// Bode plot and FFT windows (window.CircuitJSBode / CircuitJSFFT, opened from the Scopes menu)
+import "./bodeplot.js";
+import "./fftplot.js";
 
 // used via the global (window.LZString) by CirSim.decompress() and ExportAsUrlDialog
 (window as any).LZString = LZString;

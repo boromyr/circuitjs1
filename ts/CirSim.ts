@@ -350,6 +350,7 @@ export class CirSim {
 
     onTimeStep(): void {
         this.scopeManager.timeStep();
+        this.sim.fftCapture.timeStep();
         this.jsInterface?.callTimeStepHook();
     }
 

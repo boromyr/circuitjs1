@@ -38,6 +38,7 @@ import { SimulationManager } from "./SimulationManager";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { parseIntStrict } from "./NumberParse";
+import type { ACAnalysis } from "./ACAnalysis";
 
 // circuit element class
 export abstract class CircuitElm implements Editable {
@@ -1346,6 +1347,11 @@ export abstract class CircuitElm implements Editable {
     // can be overridden for elements like MOSFETs where the gate affects drain/source
     // but isn't electrically connected.  n1 and n2 may be internal nodes.
     getMatrixConnection(n1: number, n2: number): boolean { return this.getConnection(n1, n2); }
+
+    // AC (small-signal) analysis for the Bode plot: elements with timestep-dependent
+    // companion models (capacitors, inductors, junction caps) replace them with their
+    // real admittance here.  See ACAnalysis.
+    stampAC(ac: ACAnalysis): void { }
 
     // is n1 connected to ground somehow?
     hasGroundConnection(n1: number): boolean { return false; }

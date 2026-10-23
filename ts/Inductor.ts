@@ -19,6 +19,7 @@
 
 import { CircuitNode } from "./CircuitNode";
 import { SimulationManager } from "./SimulationManager";
+import type { ACAnalysis } from "./ACAnalysis";
 
 export class Inductor {
     static readonly FLAG_BACK_EULER = 2;
@@ -83,6 +84,10 @@ export class Inductor {
         }
         //this.sim.stampRightSide(this.nodes[0]);
         //this.sim.stampRightSide(this.nodes[1]);
+    }
+    stampAC(ac: ACAnalysis): void {
+        if (this.compResistance > 0)
+            ac.inductor(this.nodes[0], this.nodes[1], 1/this.compResistance, this.calcEffectiveInductance(this.current));
     }
     nonLinear(): boolean { return this.saturationCurrent > 0; }
 

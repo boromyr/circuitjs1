@@ -29,6 +29,8 @@ import { DMatrixSparseCSC } from "./matrix/DMatrixSparseCSC";
 import { SparseLU } from "./matrix/SparseLU";
 import { HookRegistry } from "./HookRegistry";
 import { parseIntStrict } from "./NumberParse";
+import { ACAnalysis } from "./ACAnalysis";
+import { FFTCapture } from "./FFTCapture";
 
 // declared before SimulationManager so they can be referenced in static members
 export class WireSegment {
@@ -77,6 +79,11 @@ export class SimulationManager {
     // mapping from elements to connected routed wires
     routedWireMap: Map<any, RoutedWireConnection[]> = new Map();
     elmArr: any[] = [];  // CircuitElm[]
+    acAnalysis: ACAnalysis = new ACAnalysis(this);
+    // changes whenever the circuit is analyzed or stamped again (an edit, a new circuit, a
+    // slider, a time step change), so the Bode window knows when its sweep is out of date
+    circuitVersion: number = 0;
+    fftCapture: FFTCapture = new FFTCapture(this);
     t: number = 0;
 
     // Solver type: 0=Auto, 1=Dense, 2=Sparse
@@ -913,6 +920,7 @@ export class SimulationManager {
     // analyze the circuit when something changes, so it can be simulated.
     // Most of this has been moved to preStampCircuit() so it can be avoided if the simulation is stopped.
     analyzeCircuit(): void {
+	this.circuitVersion++;
 	this.app.setStopElm(null, null);
 	this.elmList = this.app.elmList;
 	if (this.elmList.length === 0) {
@@ -1058,6 +1066,7 @@ export class SimulationManager {
     // this gets called after something changes in the circuit, and also when auto-adjusting timestep
     stampCircuit(): void {
 	let i: number;
+	this.circuitVersion++;
 
 	// initialize per-matrix arrays
 	for (i = 0; i !== this.matrices!.length; i++) {
@@ -1396,7 +1405,10 @@ export class SimulationManager {
 	//const maxIter = this.app.getIterCount();
 	let debugprint = this.app.dumpMatrix;
 	this.app.dumpMatrix = false;
-	const steprate = Math.trunc(160 * this.app.getIterCount());
+	let steprate = Math.trunc(160 * this.app.getIterCount());
+	// while the FFT window acquires, as many steps as fit in the frame time limit below
+	if (this.fftCapture.isFast())
+	    steprate = 1000000000;
 	let tm = Date.now();
 	let lit = this.lastIterTime;
 	if (lit === 0) {

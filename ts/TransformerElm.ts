@@ -27,6 +27,7 @@ import { Checkbox } from "./Checkbox";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { parseFloatStrict } from "./NumberParse";
+import type { ACAnalysis } from "./ACAnalysis";
 
 export class TransformerElm extends CircuitElm {
     inductance: number;
@@ -267,6 +268,17 @@ export class TransformerElm extends CircuitElm {
         CircuitElm.sim.stampRightSide(this.nodes[1]);
         CircuitElm.sim.stampRightSide(this.nodes[2]);
         CircuitElm.sim.stampRightSide(this.nodes[3]);
+    }
+
+    // companion conductances a1..a4 are (inverse inductance matrix)*ts; in AC they become
+    // (inverse inductance matrix)/(jw)
+    stampAC(ac: ACAnalysis): void {
+        const ts = this.isTrapezoidal() ? CircuitElm.sim.timeStep/2 : CircuitElm.sim.timeStep;
+        const n = this.nodes;
+        ac.transAdmittance(n[0], n[2], n[0], n[2], -this.a1, 0, -this.a1/ts);
+        ac.transAdmittance(n[0], n[2], n[1], n[3], -this.a2, 0, -this.a2/ts);
+        ac.transAdmittance(n[1], n[3], n[0], n[2], -this.a3, 0, -this.a3/ts);
+        ac.transAdmittance(n[1], n[3], n[1], n[3], -this.a4, 0, -this.a4/ts);
     }
 
     startIteration(): void {

@@ -38,6 +38,7 @@ import { Locale } from "./Locale";
 import { ScrollValuePopup } from "./ScrollValuePopup";
 import { TypeScrollPopup } from "./TypeScrollPopup";
 import { parseFloatStrict } from "./NumberParse";
+import type { ACAnalysis } from "./ACAnalysis";
 
 export class MosfetElm extends CircuitElm {
     pnp: number;
@@ -564,6 +565,14 @@ export class MosfetElm extends CircuitElm {
         if (CircuitElm.sim.subIterations > 100 && diff < .01 + (CircuitElm.sim.subIterations - 100) * .0001)
             return false;
         return true;
+    }
+
+    // gate capacitance companions (backward euler, geq = C/dt) -> jwC
+    stampAC(ac: ACAnalysis): void {
+        if (this.model.capGS > 0 && this.geqGS > 0)
+            ac.junctionCapacitor(this.nodes[0], this.nodes[1], this.geqGS, this.model.capGS);
+        if (this.model.capGD > 0 && this.geqGD > 0)
+            ac.junctionCapacitor(this.nodes[0], this.nodes[2], this.geqGD, this.model.capGD);
     }
 
     stepFinished(): void {
