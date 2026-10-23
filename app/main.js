@@ -9,6 +9,7 @@ const dialog = electron.dialog
 
 const path = require('path')
 const url = require('url')
+const fs = require('fs')
 
 
 // Keep a global reference of the window object, if you don't, the window will
@@ -137,15 +138,91 @@ event.preventDefault();
   }
 });
 
+// The open and save dialogs start in the last folder used by either of them,
+// kept in the profile (userData) so it survives restarts.
+function lastDirFile() {
+  return path.join(app.getPath('userData'), 'last-dir.json');
+}
+
+function getLastDir() {
+  try {
+    var dir = JSON.parse(fs.readFileSync(lastDirFile(), 'utf8')).dir;
+    if (dir && fs.statSync(dir).isDirectory())
+      return dir;
+  } catch (e) {}
+  return null;
+}
+
+function setLastDir(dir) {
+  if (!dir)
+    return;
+  try {
+    fs.writeFileSync(lastDirFile(), JSON.stringify({ dir: dir }));
+  } catch (e) {}
+}
+
+// Electron's dialogs lose the folder the user browsed to when they are closed
+// without a file.  On Windows the dialogs go through filedialog.exe (built by
+// build.bat from filedialog.cs), which reports that folder too; without it
+// (or elsewhere) Electron's own dialogs are used and only a chosen file counts.
+var FILEDIALOG = path.join(__dirname, 'filedialog.exe');
+
+// resolves to {ok, file, folder}, or null when the helper is not available
+function nativeDialog(win, mode, folder, name) {
+  if (process.platform !== 'win32' || !fs.existsSync(FILEDIALOG))
+    return Promise.resolve(null);
+  var hwnd = win ? win.getNativeWindowHandle() : null;
+  var owner = hwnd ? (hwnd.length >= 8 ? hwnd.readBigUInt64LE(0) : hwnd.readUInt32LE(0)).toString() : '';
+  var out = path.join(require('os').tmpdir(), 'circuitjs-dialog-' + process.pid + '-' + Date.now() + '.txt');
+  return new Promise(function (resolve) {
+    require('child_process').execFile(FILEDIALOG, [mode, owner, folder || '', name || '', out], function (err) {
+      var lines = null;
+      try { lines = fs.readFileSync(out, 'utf8').split('\n'); fs.unlinkSync(out); } catch (e) {}
+      if (err || !lines)
+        resolve(null);
+      else
+        resolve({ ok: lines[0] === 'ok' && !!lines[1], file: lines[1], folder: lines[2] });
+    });
+  });
+}
+
 ipcMain.handle('show-save-dialog', async (event, defaultPath) => {
+  var win = BrowserWindow.fromWebContents(event.sender);
+  var dir = getLastDir();
+  var name = defaultPath ? path.basename(defaultPath) : '';
+  var start = (defaultPath && path.isAbsolute(defaultPath)) ? path.dirname(defaultPath) : dir;
+  var r = await nativeDialog(win, 'save', start, name);
+  if (r) {
+    setLastDir(r.ok ? path.dirname(r.file) : r.folder);
+    return { canceled: !r.ok, filePath: r.ok ? r.file : undefined };
+  }
   var opts = {};
+  // a bare file name goes into the last folder; a full path is kept as it is
   if (defaultPath)
-    opts.defaultPath = defaultPath;
-  return dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), opts);
+    opts.defaultPath = (dir && !path.isAbsolute(defaultPath)) ? path.join(dir, defaultPath) : defaultPath;
+  else if (dir)
+    opts.defaultPath = dir;
+  var result = await dialog.showSaveDialog(win, opts);
+  if (!result.canceled && result.filePath)
+    setLastDir(path.dirname(result.filePath));
+  return result;
 });
 
 ipcMain.handle('show-open-dialog', async (event) => {
-  return dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), { properties: ['openFile'] });
+  var win = BrowserWindow.fromWebContents(event.sender);
+  var dir = getLastDir();
+  var r = await nativeDialog(win, 'open', dir, '');
+  if (r) {
+    setLastDir(r.ok ? path.dirname(r.file) : r.folder);
+    return { canceled: !r.ok, filePaths: r.ok ? [r.file] : [] };
+  }
+  var opts = { properties: ['openFile'] };
+  if (dir)
+    opts.defaultPath = dir;
+  var result = await dialog.showOpenDialog(win, opts);
+  if (!result.canceled && result.filePaths.length > 0)
+    setLastDir(path.dirname(result.filePaths[0]));
+  return result;
 });
 
 ipcMain.on('toggle-dev-tools', (event) => {
@@ -155,6 +232,53 @@ ipcMain.on('toggle-dev-tools', (event) => {
 ipcMain.on('new-window', () => {
   createWindow();
 });
+
+// The last files opened, most recent first (File > Open Recent), kept in the
+// profile and shared by all the windows.
+var MAX_RECENT = 10;
+
+function recentFilesFile() {
+  return path.join(app.getPath('userData'), 'recent-files.json');
+}
+
+function loadRecentFiles() {
+  try {
+    var list = JSON.parse(fs.readFileSync(recentFilesFile(), 'utf8'));
+    if (Array.isArray(list))
+      return list.filter(function (f) { return typeof f === 'string'; }).slice(0, MAX_RECENT);
+  } catch (e) {}
+  return [];
+}
+
+function saveRecentFiles(list) {
+  try {
+    fs.writeFileSync(recentFilesFile(), JSON.stringify(list, null, 1));
+  } catch (e) {}
+}
+
+function sameFile(a, b) {
+  return process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+ipcMain.on('get-recent-files', (event) => {
+  event.returnValue = loadRecentFiles();
+});
+
+ipcMain.on('add-recent-file', (event, file) => {
+  if (typeof file !== 'string' || !file)
+    return;
+  file = path.resolve(file);
+  var list = loadRecentFiles().filter(function (f) { return !sameFile(f, file); });
+  list.unshift(file);
+  saveRecentFiles(list.slice(0, MAX_RECENT));
+});
+
+ipcMain.on('remove-recent-file', (event, file) => {
+  saveRecentFiles(loadRecentFiles().filter(function (f) { return !sameFile(f, file); }));
+});
+
+// only the first window may reopen the last circuit (Options > Reopen Last Circuit at Startup)
+var firstWindowMade = false;
 
 function createWindow () {
   // On Mac, use open-file event path; on Windows/Linux use argv[1]
@@ -183,6 +307,9 @@ function createWindow () {
   var queryParts = [];
   if (fileToOpen)
     queryParts.push('openFile=' + encodeURIComponent(fileToOpen));
+  if (!firstWindowMade)
+    queryParts.push('restoreLast=1');
+  firstWindowMade = true;
   Object.keys(extraParams).forEach(function(k) {
     queryParts.push(encodeURIComponent(k) + '=' + encodeURIComponent(extraParams[k]));
   });
@@ -203,7 +330,29 @@ function createWindow () {
       windows.splice(i, 1);
   })
 
-  mainWindow.webContents.setWindowOpenHandler(({ disposition }) => {
+  mainWindow.webContents.setWindowOpenHandler(({ frameName }) => {
+	// Bode plot window (war/bodeplot.js): a blank, same-origin window that the simulator
+	// page fills and redraws itself.  Not a child of the simulator window, so activating the
+	// simulator brings it in front (the speed slider is in the plot windows too)
+	if (frameName === 'circuitjs-bode') {
+	  return { action: 'allow', overrideBrowserWindowOptions: {
+	    title: 'Bode Plot',
+	    minWidth: 480,
+	    minHeight: 320,
+	    backgroundColor: '#1e1e1e',
+	    autoHideMenuBar: true
+	  } };
+	}
+	// FFT window (war/fftplot.js), made the same way
+	if (frameName === 'circuitjs-fft') {
+	  return { action: 'allow', overrideBrowserWindowOptions: {
+	    title: 'FFT',
+	    minWidth: 560,
+	    minHeight: 360,
+	    backgroundColor: '#1e1e1e',
+	    autoHideMenuBar: true
+	  } };
+	}
 	// new windows are handled via IPC (window.newWindow); deny everything else
 	return { action: 'deny' };
   });
