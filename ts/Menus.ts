@@ -657,7 +657,8 @@ export class Menus {
         this.makeClassCheckItems(activeBlocMenu, [
             "Add Op Amp (ideal, - on top)",                   "OpAmpElm",
             "Add Op Amp (ideal, + on top)",                   "OpAmpSwapElm",
-            "Add Op Amp (real)",                              "OpAmpRealElm",
+            "Add Op Amp (real, - on top)",                    "OpAmpRealElm",
+            "Add Op Amp (real, + on top)",                    "OpAmpRealSwapElm",
             "Add Analog Switch (SPST)",                       "AnalogSwitchElm",
             "Add Analog Switch (SPDT)",                       "AnalogSwitch2Elm",
             "Add Analog Multiplexer",                         "AnalogMuxElm",

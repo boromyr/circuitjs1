@@ -87,6 +87,7 @@ import { OTAElm } from "./OTAElm";
 import { OhmMeterElm } from "./OhmMeterElm";
 import { OpAmpElm } from "./OpAmpElm";
 import { OpAmpRealElm } from "./OpAmpRealElm";
+import { OpAmpRealSwapElm } from "./OpAmpRealSwapElm";
 import { OpAmpSwapElm } from "./OpAmpSwapElm";
 import { OptocouplerElm } from "./OptocouplerElm";
 import { OrGateElm } from "./OrGateElm";
@@ -242,6 +243,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("OhmMeterElm", OhmMeterElm as any);
     ElementFactory.registerClass("OpAmpElm", OpAmpElm as any);
     ElementFactory.registerClass("OpAmpRealElm", OpAmpRealElm as any);
+    ElementFactory.registerClass("OpAmpRealSwapElm", OpAmpRealSwapElm as any);
     ElementFactory.registerClass("OpAmpSwapElm", OpAmpSwapElm as any);
     ElementFactory.registerClass("OptocouplerElm", OptocouplerElm as any);
     ElementFactory.registerClass("OrGateElm", OrGateElm as any);
@@ -393,6 +395,7 @@ export function registerElements(): void {
     CirSim.theApp.register("OhmMeterElm", new OhmMeterElm(0, 0));
     CirSim.theApp.register("OpAmpElm", new OpAmpElm(0, 0));
     CirSim.theApp.register("OpAmpRealElm", new OpAmpRealElm(0, 0));
+    CirSim.theApp.register("OpAmpRealSwapElm", new OpAmpRealSwapElm(0, 0));
     CirSim.theApp.register("OpAmpSwapElm", new OpAmpSwapElm(0, 0));
     CirSim.theApp.register("OptocouplerElm", new OptocouplerElm(0, 0));
     CirSim.theApp.register("OrGateElm", new OrGateElm(0, 0));
