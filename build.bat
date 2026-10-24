@@ -79,6 +79,8 @@ powershell -NoProfile -Command "Get-ChildItem -LiteralPath $env:OUT -Force | Whe
 tar -xf "%ELECTRON_ZIP%" -C "%OUT%" || goto fail
 del /q "%OUT%\resources\default_app.asar" 2>nul
 ren "%OUT%\electron.exe" CircuitJS.exe || goto fail
+rem electron.exe carries the Electron icon: give the exe the CircuitJS one
+powershell -NoProfile -ExecutionPolicy Bypass -File "%ROOT%\ts\scripts\set-exe-icon.ps1" -Exe "%OUT%\CircuitJS.exe" -Icon "%ROOT%\app\CircuitJS1.ico" || goto fail
 
 set "APP=%OUT%\resources\app"
 mkdir "%APP%"

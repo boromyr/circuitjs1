@@ -11,6 +11,9 @@ const path = require('path')
 const url = require('url')
 const fs = require('fs')
 
+// window and taskbar icon (the exe's own icon is set by build.bat)
+const APP_ICON = path.join(__dirname, 'CircuitJS1.ico')
+
 
 // Keep a global reference of the window object, if you don't, the window will
 // be closed automatically when the JavaScript object is garbage collected.
@@ -304,6 +307,7 @@ function createWindow () {
 // Create the browser window.
   var mainWindow = new BrowserWindow({width: 1200,
     height: 800,
+    icon: APP_ICON,
     webPreferences: { nativeWindowOpen: true,
                       sandbox: false,
                       contextIsolation: false,
@@ -354,6 +358,7 @@ function createWindow () {
 	if (frameName === 'circuitjs-bode') {
 	  return { action: 'allow', overrideBrowserWindowOptions: {
 	    title: 'Bode Plot',
+	    icon: APP_ICON,
 	    minWidth: 480,
 	    minHeight: 320,
 	    backgroundColor: '#1e1e1e',
@@ -365,6 +370,7 @@ function createWindow () {
 	if (frameName === 'circuitjs-fft') {
 	  return { action: 'allow', overrideBrowserWindowOptions: {
 	    title: 'FFT',
+	    icon: APP_ICON,
 	    minWidth: 560,
 	    minHeight: 360,
 	    backgroundColor: '#1e1e1e',
