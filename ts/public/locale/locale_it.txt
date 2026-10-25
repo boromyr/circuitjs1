@@ -1833,3 +1833,6 @@
 "Add Op Amp (real, + on top)"="Aggiungi Amplificatore Operazionale Reale (+ in alto)"
 "Do you want to save the changes to the circuit before closing?"="Vuoi salvare le modifiche al circuito prima di chiudere?"
 "Don't Save"="Non salvare"
+"Normalize Volume"="Normalizza il volume"
+"Full Scale (V), when not normalized"="Fondo scala (V), se non normalizzato"
+"Loop"="Ripeti in loop"

@@ -21,6 +21,7 @@ import { CircuitElm } from "./CircuitElm";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { AudioOutputElm } from "./AudioOutputElm";
+import { Checkbox } from "./Checkbox";
 import { EditInfo } from "./EditInfo";
 import { Graphics } from "./Graphics";
 import { Locale } from "./Locale";
@@ -42,6 +43,8 @@ export class AudioInputElm extends RailElm {
     fileName: string | null = null;
     declare maxVoltage: number;
     startPosition: number = 0;
+    // at the end of the file, start again from startPosition instead of going silent
+    loop: boolean = false;
 
     static lastSamplingRate: number = 0;
 
@@ -58,6 +61,8 @@ export class AudioInputElm extends RailElm {
             this.maxVoltage = parseFloatStrict(st.nextToken());
             this.startPosition = parseFloatStrict(st.nextToken());
             this.fileNum = parseIntStrict(st.nextToken());
+            if (st.hasMoreTokens())
+                this.loop = parseIntStrict(st.nextToken()) !== 0;
             this.lookupFileNumber();
             this.samplingRate = AudioInputElm.lastSamplingRate;
         } else {
@@ -93,6 +98,8 @@ export class AudioInputElm extends RailElm {
         CircuitXMLSerializer.dumpAttr(elem, "st", this.startPosition);
         this.genFileNumber();
         CircuitXMLSerializer.dumpAttr(elem, "fi", this.fileNum);
+        if (this.loop)
+            CircuitXMLSerializer.dumpAttr(elem, "lo", true);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -100,6 +107,7 @@ export class AudioInputElm extends RailElm {
         this.maxVoltage = xml.parseDoubleAttr("ma", this.maxVoltage);
         this.startPosition = xml.parseDoubleAttr("st", this.startPosition);
         this.fileNum = xml.parseIntAttr("fi", this.fileNum);
+        this.loop = xml.parseBooleanAttr("lo", false);
         this.lookupFileNumber();
         this.samplingRate = AudioInputElm.lastSamplingRate;
     }
@@ -125,14 +133,20 @@ export class AudioInputElm extends RailElm {
             return 0;
         if (this.timeOffset < this.startPosition)
             this.timeOffset = this.startPosition;
-        const dptr = this.timeOffset * this.samplingRate;
+        let dptr = this.timeOffset * this.samplingRate;
+        const len = this.data.length;
+        const startIdx = Math.min(this.startPosition * this.samplingRate, len);
+        const looping = this.loop && len > startIdx;
+        if (looping && dptr >= len)
+            dptr = startIdx + (dptr - startIdx) % (len - startIdx);
         const iptr = Math.trunc(dptr);
         const frac = dptr - iptr;
-        if (iptr >= this.data.length)
+        if (iptr >= len)
             return 0;
         const value1 = this.data[iptr];
-        const value2 = (iptr + 1 < this.data.length) ? this.data[iptr + 1] : 0;
-        return (value1 * (1 - frac) + value2 * frac) * this.maxVoltage;
+        // the sample after the last one is the first one of the next round
+        const next = iptr + 1 < len ? this.data[iptr + 1] : looping ? this.data[Math.trunc(startIdx)] : 0;
+        return (value1 * (1 - frac) + next * frac) * this.maxVoltage;
     }
 
     stepFinished(): void {
@@ -163,6 +177,11 @@ export class AudioInputElm extends RailElm {
             return new EditInfo("Max Voltage", this.maxVoltage).setUnitStep();
         if (n === 2)
             return new EditInfo("Start Position (s)", this.startPosition);
+        if (n === 3) {
+            const ei = new EditInfo("", 0, -1, -1);
+            ei.checkbox = new Checkbox("Loop", this.loop);
+            return ei;
+        }
         return null;
     }
 
@@ -171,6 +190,8 @@ export class AudioInputElm extends RailElm {
             this.maxVoltage = ei.value;
         if (n === 2)
             this.startPosition = ei.value;
+        if (n === 3)
+            this.loop = ei.checkbox!.getState();
     }
 
     // fetch audio data for a selected file

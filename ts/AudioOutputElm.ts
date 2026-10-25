@@ -26,6 +26,7 @@ import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
 import { CircuitXMLDeserializer } from "./CircuitXMLDeserializer";
 import { EditInfo } from "./EditInfo";
 import { Choice } from "./Choice";
+import { Checkbox } from "./Checkbox";
 import { Locale } from "./Locale";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 
@@ -40,6 +41,10 @@ export class AudioOutputElm extends CircuitElm {
     duration: number = 0;
     sampleStep: number = 0;
     dataStart: number = 0;
+    // true: play at a fixed loudness whatever the voltage; false: voltage maps straight to the
+    // sound level, with +-fullScale volts the loudest the file can hold (louder is clipped)
+    normalize: boolean = true;
+    fullScale: number = 1;
     static lastSamplingRate: number = 8000;
     static okToChangeTimeStep: boolean = false;
 
@@ -58,6 +63,10 @@ export class AudioOutputElm extends CircuitElm {
             this.duration = parseFloatStrict(st!.nextToken());
             this.samplingRate = parseIntStrict(st!.nextToken());
             this.labelNum = parseIntStrict(st!.nextToken());
+            if (st!.hasMoreTokens()) {
+                this.normalize = parseIntStrict(st!.nextToken()) !== 0;
+                this.fullScale = parseFloatStrict(st!.nextToken());
+            }
             this.setDataCount();
             this.createButton();
         }
@@ -68,6 +77,10 @@ export class AudioOutputElm extends CircuitElm {
         CircuitXMLSerializer.dumpAttr(elem, "du", this.duration);
         CircuitXMLSerializer.dumpAttr(elem, "sa", this.samplingRate);
         CircuitXMLSerializer.dumpAttr(elem, "la", this.labelNum);
+        if (!this.normalize)
+            CircuitXMLSerializer.dumpAttr(elem, "nm", false);
+        if (this.fullScale !== 1)
+            CircuitXMLSerializer.dumpAttr(elem, "fs", this.fullScale);
     }
 
     undumpXml(xml: CircuitXMLDeserializer): void {
@@ -75,6 +88,8 @@ export class AudioOutputElm extends CircuitElm {
         this.duration = xml.parseDoubleAttr("du", this.duration);
         this.samplingRate = xml.parseIntAttr("sa", this.samplingRate);
         this.labelNum = xml.parseIntAttr("la", this.labelNum);
+        this.normalize = xml.parseBooleanAttr("nm", true);
+        this.fullScale = xml.parseDoubleAttr("fs", this.fullScale);
         this.setDataCount();
         this.setButtonLabel();
     }
@@ -194,6 +209,13 @@ export class AudioOutputElm extends CircuitElm {
         }
         if (n === 2) {
             const ei = new EditInfo("", 0, -1, -1);
+            ei.checkbox = new Checkbox("Normalize Volume", this.normalize);
+            return ei;
+        }
+        if (n === 3)
+            return new EditInfo("Full Scale (V), when not normalized", this.fullScale).setPositive();
+        if (n === 4) {
+            const ei = new EditInfo("", 0, -1, -1);
             const url = AudioOutputElm.getLastBlob();
             if (url === null)
                 return null;
@@ -226,6 +248,10 @@ export class AudioOutputElm extends CircuitElm {
                 this.setTimeStep();
             }
         }
+        if (n === 2)
+            this.normalize = ei.checkbox!.getState();
+        if (n === 3 && ei.value > 0)
+            this.fullScale = ei.value;
     }
 
     setTimeStep(): void {
@@ -330,16 +356,23 @@ export class AudioOutputElm extends CircuitElm {
             return;
         }
 
-        // rescale data to maximize
-        let max = -1e8;
-        let min = 1e8;
-        for (let i = 0; i !== ct; i++) {
-            if (this.data[i] > max) max = this.data[i];
-            if (this.data[i] < min) min = this.data[i];
-        }
+        let adj = 0;
+        let mult: number;
+        if (this.normalize) {
+            // rescale data to maximize
+            let max = -1e8;
+            let min = 1e8;
+            for (let i = 0; i !== ct; i++) {
+                if (this.data[i] > max) max = this.data[i];
+                if (this.data[i] < min) min = this.data[i];
+            }
 
-        const adj = -(max + min) / 2;
-        const mult = (.25 * 32766) / (max + adj);
+            adj = -(max + min) / 2;
+            mult = max + adj > 0 ? (.25 * 32766) / (max + adj) : 0;
+        } else {
+            // the voltage as it is: +-fullScale volts is the loudest the file can hold
+            mult = 32766 / this.fullScale;
+        }
 
         // fade in over 1/20 sec
         const fadeLen = Math.floor(this.samplingRate / 20);
@@ -350,7 +383,7 @@ export class AudioOutputElm extends CircuitElm {
         for (let i = 0; i !== ct; i++) {
             const fade = (i < fadeLen) ? i * fadeMult : (i > fadeOut) ? (ct - i) * fadeMult : mult;
             const s = Math.floor((this.data[(i + base) % this.dataCount] + adj) * fade);
-            arr.push(s);
+            arr.push(Math.max(-32767, Math.min(32767, s)));
         }
         AudioOutputElm.playAudio(arr, this.samplingRate);
     }
