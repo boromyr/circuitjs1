@@ -21,6 +21,7 @@ import { BetterStringTokenizer } from "./BetterStringTokenizer";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { DiodeModel } from "./DiodeModel";
 import { ExtListEntry } from "./ExtListEntry";
+import { SpiceNetlist } from "./SpiceNetlist";
 import { SubcircuitSymbols } from "./SubcircuitSymbols";
 import { TransistorModel } from "./TransistorModel";
 import { UserModelLibrary } from "./UserModelLibrary";
@@ -89,6 +90,8 @@ export class SpiceImport {
     static analyzeHeader(text: string): SpiceHeader {
         const h = new SpiceHeader();
         const lines = SpiceImport.getLines(text);
+        // the subcircuit that is imported, if the text has the ones it uses too
+        const top = SpiceNetlist.findTopSubckt(lines);
         let header = "";
         const ladder: string[] = [];
         const comments: string[] = [];
@@ -123,8 +126,12 @@ export class SpiceImport {
                 continue;
             const st = new BetterStringTokenizer(t, " \t\f()");
             st.nextToken();
-            if (st.hasMoreTokens())
-                header += st.nextToken() + " ";
+            if (!st.hasMoreTokens())
+                continue;
+            const name = st.nextToken();
+            if (top != null && name !== top)
+                continue;
+            header += name + " ";
             while (st.hasMoreTokens()) {
                 const n = st.nextToken();
                 if (n === "(" || n === ")")
@@ -313,7 +320,10 @@ export class SpiceImport {
 
     // convert the subcircuit in a SPICE text; null (with the reason logged) if it can't be done
     parse(text: string): SpiceSubcircuit | null {
-        const lines = SpiceImport.getLines(text);
+        // with the subcircuits it uses expanded into it
+        const lines = SpiceNetlist.flatten(SpiceImport.getLines(text), this.log);
+        if (lines == null)
+            return null;
         const transistorModels = new Map<string, TransistorModelImport>();
         const fetModels = new Map<string, FetModelImport>();
         this.voltageSources = new Map();
@@ -466,6 +476,11 @@ export class SpiceImport {
 
                 for (let i = 0; i !== nodeCount; i++)
                     this.addNode(st.nextToken());
+                // and the nodes the expression of a VALUE source uses
+                if ("egb".indexOf(c) >= 0)
+                    for (const m of line.toLowerCase().matchAll(/\bv\s*\(([^()]*)\)/g))
+                        for (const n of m[1].split(","))
+                            this.addNode(n.trim());
             } catch (e) {
                 this.log("exception when parsing line: " + line);
             }
@@ -604,12 +619,12 @@ export class SpiceImport {
                     // it simplifies things for controlled sources
                     this.elmDump += "VoltageElm " + this.findNode(n1) + " " + this.findNode(n2) + "\r";
                     this.ldump = "0 0 0 " + (-v);
+                } else if (c === 'b' || ((c === 'e' || c === 'g') && /\svalue\b/i.test(line))) {
+                    this.parseValueSource(c, line);
                 } else if (c === 'e') {
                     this.parseControlledSource("VCVSElm", st, false);
                 } else if (c === 'g') {
                     this.parseControlledSource("VCCSElm", st, false);
-                } else if (c === 'b') {
-                    this.parseBSource(st);
                 } else if (c === 'h') {
                     this.parseControlledSource("CCVSElm", st, true);
                 } else if (c === 'f') {
@@ -620,7 +635,7 @@ export class SpiceImport {
                 }
                 addDump(this.ldump);
             } catch (e) {
-                this.log("exception when parsing line: " + line);
+                this.log("exception when parsing line: " + line + ((e instanceof Error) ? " (" + e.message + ")" : ""));
                 return null;
             }
         }
@@ -642,11 +657,6 @@ export class SpiceImport {
 
     private findNode(node: string): number {
         return this.nodes.indexOf(node) + 1;
-    }
-
-    private skipToken(st: BetterStringTokenizer, tok: string): void {
-        if (st.nextToken() !== tok)
-            throw new Error("expected " + tok);
     }
 
     // get/create variant of transistor model with a particular area
@@ -672,48 +682,37 @@ export class SpiceImport {
         return n;
     }
 
-    private parseBSource(st: BetterStringTokenizer): void {
-        const outn1 = st.nextToken();
-        const outn2 = st.nextToken();
-        st.setDelimiters("*+=/(,) ");
-        this.skipToken(st, "i");
-        this.parseControlledSourceExpr(st, "VCCSElm", outn2, outn1);
-    }
-
-    private parseControlledSourceExpr(st: BetterStringTokenizer, cls: string, outn1: string, outn2: string): void {
-        const inputs: string[] = [];
-        let expr = "";
-        this.skipToken(st, "=");
-        while (st.hasMoreTokens()) {
-            const s = st.nextToken();
-            if (s === "{")
-                continue;
-            if (s === "}")
-                break;
-            if (s === "v") {
-                this.skipToken(st, "(");
-                const n1 = st.nextToken();
-                const inct = inputs.length;
-                inputs.push(n1);
-                let n2: string | null = null;
-                let s2 = st.nextToken();
-                if (s2 === ",") {
-                    n2 = st.nextToken();
-                    s2 = st.nextToken();
-                    inputs.push(n2);
-                    expr += "(" + SpiceImport.getLetter(inct) + "-" + SpiceImport.getLetter(inct + 1) + ")";
-                } else
-                    expr += SpiceImport.getLetter(inct);
-                if (s2 !== ")")
-                    throw new Error("expected )");
-                this.log("nodes " + n1 + " and " + n2);
-            } else
-                expr += s;
+    // E or G source with VALUE = {expression}, or B source (I = or V = expression)
+    private parseValueSource(c: string, line: string): void {
+        const m = /^\S+\s+(\S+)\s+(\S+)\s+(.*)$/.exec(line.toLowerCase());
+        if (m == null)
+            throw new Error("missing nodes");
+        let n1 = m[1];
+        let n2 = m[2];
+        let rest = m[3];
+        let cls: string;
+        if (c === 'b') {
+            const bm = /^([iv])\s*=\s*(.*)$/.exec(rest);
+            if (bm == null)
+                throw new Error("expected I= or V=");
+            cls = (bm[1] === 'i') ? "VCCSElm" : "VCVSElm";
+            rest = bm[2];
+        } else {
+            cls = (c === 'e') ? "VCVSElm" : "VCCSElm";
+            rest = rest.replace(/^value\s*=?\s*/, "");
         }
+        // swap output nodes for current sources because current flows the opposite way
+        if (cls === "VCCSElm") {
+            const x = n1;
+            n1 = n2;
+            n2 = x;
+        }
+        const inputs: string[] = [];
+        const expr = SpiceNetlist.translateExpr(rest, inputs);
         this.elmDump += cls;
         for (const inp of inputs)
             this.elmDump += " " + this.findNode(inp);
-        this.elmDump += " " + this.findNode(outn1) + " " + this.findNode(outn2) + "\r";
+        this.elmDump += " " + this.findNode(n1) + " " + this.findNode(n2) + "\r";
         this.ldump = "0 " + inputs.length + " " + expr;
     }
 
@@ -737,13 +736,8 @@ export class SpiceImport {
 
         st.setDelimiters(" =");
         let n3 = st.nextToken();
-        if (n3 === "value") {
-            st.setDelimiters(" ={}()+-*/,");
-            if (cc)
-                throw new Error("value not supported for current-controlled sources");
-            this.parseControlledSourceExpr(st, cls, n1, n2);
-            return;
-        }
+        if (n3 === "value")
+            throw new Error("value not supported for current-controlled sources");
         if (!n3.startsWith("poly")) {
             // not a POLY, just simple linear controlled source with two control inputs
             let n4: string;

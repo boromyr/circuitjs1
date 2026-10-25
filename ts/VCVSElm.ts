@@ -69,7 +69,8 @@ export class VCVSElm extends VCCSElm {
         if (this.expr != null) {
             const rs = this.engine.evalAndStamp(false);
             const v0 = this.engine.value;
-            if (Math.abs(this.nodes[this.inputCount].v - this.nodes[this.inputCount + 1].v - v0) > Math.abs(v0) * 0.01 && sim.subIterations < 100)
+            // (plus a tiny absolute tolerance: when v0 is 0 the output is off by rounding errors)
+            if (Math.abs(this.nodes[this.inputCount].v - this.nodes[this.inputCount + 1].v - v0) > Math.abs(v0) * 0.01 + 1e-12 && sim.subIterations < 100)
                 sim.converged = false;
             sim.stampRightSideVS(vn, rs);
         }

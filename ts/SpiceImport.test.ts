@@ -6,6 +6,8 @@ import { DiodeModel } from "./DiodeModel";
 import { TransistorModel } from "./TransistorModel";
 import { MosfetModel } from "./MosfetModel";
 import { CustomLogicModel } from "./CustomLogicModel";
+import { ExprParser, ExprState } from "./Expr";
+import { SpiceNetlist } from "./SpiceNetlist";
 
 export const TL072 = `* TL072 OPERATIONAL AMPLIFIER "MACROMODEL" SUBCIRCUIT
 * CREATED USING PARTS RELEASE 4.01 ON 06/16/89 AT 13:08
@@ -146,5 +148,90 @@ describe(".model lines", () => {
         const log: string[] = [];
         const e = UserModelLibrary.parseModelLine(".model 1N4148 D(IS=1n)", log);
         expect(e!.name).toBe("1N4148-spice");
+    });
+});
+
+// written like the vendor models (eg Texas Instruments): subcircuits used by the main one,
+// with PARAMS:, a VSWITCH switch, ABM expressions and models outside the subcircuits
+const NESTED = `* test of nested subcircuits
+.SUBCKT DET GND OUT VDD
+E_GAIN1  N1 0 VALUE {1 * V(VDD)}
+X_U1     N1 N2 INV_GEN PARAMS: VDD=5 VSS=0
++  VTHRESH=2.5E0
+G_ABM1   VDD 0 VALUE { IF(V(VDD) < 0, 0,
++ IF(V(VDD) < 2.5, V(VDD)*4u, LIMIT(V(VDD)*2u, 1u, 10u)))  }
+E_ABM2   N3 0 VALUE { (12.5m*pwr(V(N2),3)) + 1 }
+X_S1     N2 0 OUT 0 DET_S1
+D_D1     OUT N3 D_D1special
+R_R1     0 GND 1
+.ENDS DET
+*$
+.subckt DET_S1 1 2 3 4
+S_S1  3 4 1 2 _S1
+RS_S1 1 2 1G
+.MODEL _S1 VSWITCH Roff=1e6 Ron=10 Voff=1 Von=4
+.ends DET_S1
+*$
+.SUBCKT INV_GEN A  Y PARAMS: VDD=1 VSS=0 VTHRESH=0.5
+E_ABMGATE    YINT 0 VALUE {{IF(V(A) > {VTHRESH} ,
++ {VSS},{VDD})}}
+RINT YINT Y 1
+CINT Y 0 1n
+.ENDS INV_GEN
+*$
+.MODEL D_D1special D( IS=1e-15 TT=10p Rs=0.05 N=1.5  )
+`;
+
+describe("nested subcircuits", () => {
+    const log: string[] = [];
+    const sub = new SpiceImport(s => log.push(s)).parse(NESTED);
+    it("expands them into the main subcircuit", () => {
+        expect(sub, log.join("\n")).not.toBeNull();
+        expect(sub!.name).toBe("det");
+        expect(sub!.extList.map(e => e.name)).toEqual(["gnd", "out", "vdd"]);
+        const elms = sub!.elmDump.split("\r").filter(x => x.length > 0).map(x => x.split(" ")[0]);
+        expect(elms).toEqual(["VCVSElm", "VCVSElm", "ResistorElm", "CapacitorElm", "VCCSElm", "VCVSElm",
+            "VCCSElm", "ResistorElm", "DiodeElm", "ResistorElm"]);
+    });
+    it("translates the expressions with the parameters of each instance", () => {
+        const dump = CustomLogicModel.unescape(sub!.dump);
+        // the inverter, with VTHRESH=2.5 and VDD=5
+        expect(dump).toContain("0 1 ((((a>(2.5))?((0)):((5)))))");
+        expect(dump).toContain("0 1 (((a<0)?0:(((a<2.5)?(a*0.000004):(clamp(a*0.000002,min(0.000001,0.00001),max(0.000001,0.00001)))))))");
+        expect(dump).toContain("0 1 ((0.0125*pwr(a,3))+1)");
+    });
+    it("translates PSpice expressions", () => {
+        const inputs: string[] = [];
+        expect(SpiceNetlist.translateExpr("{V(a,b) > 1 & V(c) <> 0 | ~(time**2 = 1meg)}", inputs))
+            .toBe("((a-b)>1&&c!=0||!(t^2==1000000))");
+        expect(inputs).toEqual(["a", "b", "c"]);
+        expect(() => SpiceNetlist.translateExpr("table(v(a),0,1)", [])).toThrow();
+    });
+    it("turns switches into conductances between Ron and Roff", () => {
+        // the conductance the expression gives at a control voltage
+        const g = (vc: number) => {
+            const ix = sub!.elmDump.split("\r").findIndex(x => x.startsWith("VCCSElm") && x.split(" ").length === 5);
+            expect(ix).toBeGreaterThanOrEqual(0);
+            const dumps = CustomLogicModel.unescape(sub!.dump);
+            const expr = dumps.split(" ").find(x => x.includes("exp"))!;
+            const p = new ExprParser(expr);
+            const e = p.parseExpression();
+            expect(p.gotError()).toBeNull();
+            const es = new ExprState(0);
+            es.values[0] = 1;
+            es.values[1] = vc;
+            return e.eval(es);
+        };
+        expect(1 / g(0)).toBeCloseTo(1e6, -1);
+        expect(1 / g(5)).toBeCloseTo(10, 6);
+        expect(1 / g(2.5)).toBeCloseTo(Math.sqrt(10 * 1e6), -1);
+    });
+    it("finds the main subcircuit for the header", () => {
+        expect(SpiceNetlist.findTopSubckt(SpiceImport.getLines(NESTED))).toBe("det");
+        // also when the subcircuits it uses come first
+        const ix = NESTED.indexOf(".subckt DET_S1");
+        const reordered = NESTED.substring(ix) + NESTED.substring(0, ix);
+        expect(SpiceImport.analyzeHeader(reordered).nodes).toEqual(["gnd", "out", "vdd"]);
+        expect(new SpiceImport(() => {}).parse(reordered)!.name).toBe("det");
     });
 });
