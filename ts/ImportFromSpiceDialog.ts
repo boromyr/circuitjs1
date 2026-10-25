@@ -18,12 +18,10 @@
 */
 
 import { Dialog } from "./Dialog";
-import { DiodeModel } from "./DiodeModel";
-import { MosfetModel } from "./MosfetModel";
-import { TransistorModel } from "./TransistorModel";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
 import { Locale } from "./Locale";
 import { SpiceHeader, SpiceImport } from "./SpiceImport";
+import { SpiceModelBuilder } from "./SpiceModelBuilder";
 import { SubcircuitModel } from "./SubcircuitModel";
 import { SubcircuitSymbols } from "./SubcircuitSymbols";
 import { UserModelLibrary } from "./UserModelLibrary";
@@ -189,37 +187,6 @@ export class ImportFromSpiceDialog extends Dialog {
         this.outputArea.value += str + "\n";
     }
 
-    // the JFETs get their model from old-style parameters, under a generic name ("old-jfet-2")
-    // that other circuits may use for other values: name those models after the subcircuit
-    private static nameJfetModels(ccm: SubcircuitModel, prefix: string): void {
-        const root = ccm.elmDoc!.documentElement;
-        const renamed = new Map<string, string>();
-        for (const child of Array.from(root.children)) {
-            const mo = child.getAttribute("mo");
-            const m = (mo == null || child.tagName === "mm") ? null : MosfetModel.modelMap?.get(mo);
-            if (m == null || !m.oldStyle || !m.isJfet())
-                continue;
-            let name = renamed.get(mo!);
-            if (name == null) {
-                name = prefix + "-jfet" + (renamed.size + 1);
-                const nm = MosfetModel.getModelWithNameOrCopy(name, m, true);
-                nm.flags = m.flags;
-                nm.threshold = m.threshold;
-                nm.beta = m.beta;
-                nm.showBulk = nm.bodyDiode = false;
-                nm.oldStyle = false;
-                renamed.set(mo!, name);
-            }
-            child.setAttribute("mo", name);
-        }
-        // and the model definitions written with the elements
-        for (const child of Array.from(root.children)) {
-            const nm = child.getAttribute("nm");
-            if (child.tagName === "mm" && nm != null && renamed.has(nm))
-                child.setAttribute("nm", renamed.get(nm)!);
-        }
-    }
-
     private parseCircuit(): void {
         const text = this.textArea.value;
         const lines = SpiceImport.getLines(text);
@@ -236,19 +203,10 @@ export class ImportFromSpiceDialog extends Dialog {
             return;
         }
 
-        const sub = new SpiceImport(s => this.output(s)).parse(text);
-        if (sub == null)
+        const built = SpiceModelBuilder.build(text, s => this.output(s));
+        if (built == null)
             return;
-
-        // the device models of the elements are written into the subcircuit's definition (so
-        // it works in other sessions and circuits), unless already marked as written
-        DiodeModel.clearDumpedFlags();
-        TransistorModel.clearDumpedFlags();
-        MosfetModel.clearDumpedFlags();
-        const ccm = new SubcircuitModel();
-        ccm.extList = sub.extList;
-        ccm.convertOldFormatToXml(sub.elmDump, sub.dump);
-        ImportFromSpiceDialog.nameJfetModels(ccm, sub.name);
+        const { model: ccm, sub } = built;
 
         // draw it as the chosen component, with its pins connected to the chosen nodes
         const sym = this.getSelectedSymbol();

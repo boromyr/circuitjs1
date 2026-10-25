@@ -188,7 +188,7 @@ describe("nested subcircuits", () => {
     it("expands them into the main subcircuit", () => {
         expect(sub, log.join("\n")).not.toBeNull();
         expect(sub!.name).toBe("det");
-        expect(sub!.extList.map(e => e.name)).toEqual(["gnd", "out", "vdd"]);
+        expect(sub!.extList.map(e => e.name)).toEqual(["GND", "OUT", "VDD"]);
         const elms = sub!.elmDump.split("\r").filter(x => x.length > 0).map(x => x.split(" ")[0]);
         expect(elms).toEqual(["VCVSElm", "VCVSElm", "ResistorElm", "CapacitorElm", "VCCSElm", "VCVSElm",
             "VCCSElm", "ResistorElm", "DiodeElm", "ResistorElm"]);

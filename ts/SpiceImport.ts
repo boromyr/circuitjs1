@@ -643,6 +643,9 @@ export class SpiceImport {
             this.log("No model!");
             return null;
         }
+        // pin names are always shown in capitals
+        for (const e of extList)
+            e.name = e.name.toUpperCase();
         this.log("elmDump\n" + this.elmDump);
         this.log("\ndump\n" + dump);
         return { name: subcircuitName, displayName: subcircuitDisplayName, extList, elmDump: this.elmDump, dump };

@@ -19,6 +19,7 @@
 
 import { Dialog } from "./Dialog";
 import { SubcircuitChipElm } from "./SubcircuitChipElm";
+import { SpiceModelBuilder } from "./SpiceModelBuilder";
 import { SubcircuitModel } from "./SubcircuitModel";
 import { ExtListEntry } from "./ExtListEntry";
 import { ChipElm, Pin } from "./ChipElm";
@@ -43,6 +44,9 @@ export class EditSubcircuitModelDialog extends Dialog {
     private labelCheck: HTMLInputElement | null = null;
     private categorySelect: HTMLSelectElement | null = null;
     private canvas: HTMLCanvasElement | null = null;
+    // text of the SPICE subcircuit, when the model was imported from one
+    private spiceArea: HTMLTextAreaElement | null = null;
+    private spiceOutput: HTMLTextAreaElement | null = null;
     // name proposed for a new model (e.g. the name of an imported SPICE subcircuit)
     defaultName: string | null = null;
 
@@ -89,8 +93,13 @@ export class EditSubcircuitModelDialog extends Dialog {
             window.alert(Locale.LS("Device has no external inputs/outputs!"));
             return false;
         }
-        // pins that share a side and position (an import puts them all at the top of the
-        // west side) are spread out down their side, so they don't overlap
+        EditSubcircuitModelDialog.spreadPins(m);
+        return this.layoutPins();
+    }
+
+    // pins that share a side and position (an import puts them all at the top of the
+    // west side) are spread out down their side, so they don't overlap
+    private static spreadPins(m: SubcircuitModel): void {
         const places = new Set<number>();
         let overlap = false;
         for (const pin of m.extList)
@@ -103,18 +112,17 @@ export class EditSubcircuitModelDialog extends Dialog {
             for (const pin of m.extList)
                 pin.pos = sidePos[pin.side]++;
         }
-        return this.layoutPins();
     }
 
     // sort the pins of a new model and size its chip to fit them
-    private layoutPins(): boolean {
+    private layoutPins(m: SubcircuitModel = this.model): boolean {
         const nodeSet = new Set<number>();
-        this.model.extList.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+        m.extList.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
 
-        const postCount = this.model.extList.length;
+        const postCount = m.extList.length;
         const sideCounts = [0, 0, 0, 0];
         for (let i = 0; i < postCount; i++) {
-            const pin = this.model.extList[i];
+            const pin = m.extList[i];
             if (pin.busZ === 0) sideCounts[pin.side]++;
             if (nodeSet.has(pin.node)) {
                 window.alert(Locale.LS("Can't have two input/output nodes connected!"));
@@ -126,7 +134,7 @@ export class EditSubcircuitModelDialog extends Dialog {
         const xOffsetLeft  = sideCounts[ChipElm.SIDE_W] > 0 ? 1 : 0;
         const xOffsetRight = sideCounts[ChipElm.SIDE_E] > 0 ? 1 : 0;
         for (let i = 0; i < postCount; i++) {
-            const pin = this.model.extList[i];
+            const pin = m.extList[i];
             if (pin.side === ChipElm.SIDE_N || pin.side === ChipElm.SIDE_S)
                 pin.pos += xOffsetLeft;
         }
@@ -134,8 +142,8 @@ export class EditSubcircuitModelDialog extends Dialog {
         const minHeight = (sideCounts[ChipElm.SIDE_N] > 0 && sideCounts[ChipElm.SIDE_S] > 0) ? 2 : 1;
         const pinsNS = Math.max(sideCounts[ChipElm.SIDE_N], sideCounts[ChipElm.SIDE_S]);
         const pinsWE = Math.max(sideCounts[ChipElm.SIDE_W], sideCounts[ChipElm.SIDE_E]);
-        this.model.sizeX = Math.max(2, pinsNS + xOffsetLeft + xOffsetRight);
-        this.model.sizeY = Math.max(minHeight, pinsWE);
+        m.sizeX = Math.max(2, pinsNS + xOffsetLeft + xOffsetRight);
+        m.sizeY = Math.max(minHeight, pinsWE);
         return true;
     }
 
@@ -186,6 +194,25 @@ export class EditSubcircuitModelDialog extends Dialog {
                 this.modelNameInput.value = this.defaultName;
             this.modelNameInput.addEventListener("input", () => this.drawChip());
             this.dialogEl.appendChild(this.modelNameInput);
+        }
+
+        // the SPICE text of an imported model can be edited: OK builds the model again from it
+        this.spiceArea = null;
+        this.spiceOutput = null;
+        if (this.model.spiceText != null) {
+            this.closeOnEnter = false;
+            this.dialogEl.appendChild(Object.assign(document.createElement("div"),
+                { textContent: Locale.LS("SPICE model text:") }));
+            this.spiceArea = document.createElement("textarea");
+            this.spiceArea.spellcheck = false;
+            this.spiceArea.wrap = "off";
+            this.spiceArea.value = this.model.spiceText;
+            this.spiceArea.style.cssText = "width:100%;height:160px;box-sizing:border-box;display:block;margin:4px 0";
+            this.dialogEl.appendChild(this.spiceArea);
+            this.spiceOutput = document.createElement("textarea");
+            this.spiceOutput.readOnly = true;
+            this.spiceOutput.style.cssText = "width:100%;height:60px;box-sizing:border-box;display:none;margin:4px 0";
+            this.dialogEl.appendChild(this.spiceOutput);
         }
 
         // Width/Height controls
@@ -294,7 +321,44 @@ export class EditSubcircuitModelDialog extends Dialog {
         this.chip.setPoints();
     }
 
+    // build the model again from the edited SPICE text, keeping the pins' places, name and symbol
+    private applySpiceText(): boolean {
+        const text = this.spiceArea!.value;
+        if (text === this.model.spiceText)
+            return true;
+        const log: string[] = [];
+        const built = SpiceModelBuilder.build(text, s => { if (!s.startsWith("got line ")) log.push(s); });
+        if (built == null) {
+            this.spiceOutput!.value = log.join("\n");
+            this.spiceOutput!.style.display = "block";
+            return false;
+        }
+        const nm = built.model;
+        const old = this.model;
+        // pin names are always in capitals, also those of models imported before
+        for (const e of old.extList)
+            e.name = e.name.toUpperCase();
+        EditSubcircuitModelDialog.preservePinLayout(nm, old);
+        if (nm.sizeX === 0) {
+            EditSubcircuitModelDialog.spreadPins(nm);
+            if (!this.layoutPins(nm))
+                return false;
+        }
+        if (old.symbolNodes == null || !old.symbolNodes.every(n => n >= 1 && n <= nm.extList.length))
+            old.symbol = old.symbolNodes = null;
+        old.extList = nm.extList;
+        old.elmDoc = nm.elmDoc;
+        old.modelCircuit = nm.modelCircuit;
+        old.sizeX = nm.sizeX;
+        old.sizeY = nm.sizeY;
+        old.spiceText = text;
+        SubcircuitModel.sequenceNumber++;
+        return true;
+    }
+
     enterPressed(): void {
+        if (this.spiceArea && !this.applySpiceText())
+            return;
         if (this.modelNameInput) {
             const name = this.modelNameInput.value;
             if (name.length === 0) {

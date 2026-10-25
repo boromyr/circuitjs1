@@ -1836,3 +1836,4 @@
 "Normalize Volume"="Normalizza il volume"
 "Full Scale (V), when not normalized"="Fondo scala (V), se non normalizzato"
 "Loop"="Ripeti in loop"
+"SPICE model text:"="Testo del modello SPICE:"

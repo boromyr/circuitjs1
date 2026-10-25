@@ -51,6 +51,8 @@ export class SubcircuitModel {
     // and the subcircuit node connected to each pin of the symbol
     symbol: string | null = null;
     symbolNodes: number[] | null = null;
+    // text of the SPICE subcircuit this model was imported from, so it can be edited later
+    spiceText: string | null = null;
 
     static sequenceNumber: number = 0;
     static readonly FLAG_SHOW_LABEL = 1;
@@ -399,6 +401,11 @@ export class SubcircuitModel {
             }
             elem.appendChild(ext);
         }
+        if (this.spiceText != null) {
+            const sp = doc.createElement("spice");
+            sp.textContent = this.spiceText;
+            elem.appendChild(sp);
+        }
         // copy child elements from elmDoc into output
         if (this.elmDoc) {
             const children = this.elmDoc.documentElement.childNodes;
@@ -464,6 +471,7 @@ export class SubcircuitModel {
             this.symbol = null;
         const bcs = xml.parseIntAttr("bcs", 0) !== 0;
         this.extList = [];
+        this.spiceText = null;
 
         // build elmDoc from XML children
         this.elmDoc = document.implementation.createDocument(null, "elms", null);
@@ -491,6 +499,8 @@ export class SubcircuitModel {
                     ent.busZ = xml.parseIntAttr("bz", 0);
                     this.extList.push(ent);
                 }
+            } else if (child.tagName === "spice") {
+                this.spiceText = child.textContent;
             } else {
                 // element definition - import into elmDoc
                 const imported = this.elmDoc.importNode(child, true) as Element;
