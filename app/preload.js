@@ -18,7 +18,8 @@ window.saveFile = function (file, data, encoding) {
     path = file.filePath.toString();
     lastSavedFilePath = path;
   }
-  fs.writeFile(path, data, { encoding: encoding || 'utf8' }, function (err) { if (err) window.alert(err); });
+  // synchronous: the window may be closed right after saving
+  try { fs.writeFileSync(path, data, { encoding: encoding || 'utf8' }); } catch (err) { window.alert(err); }
 }
 
 function baseName(fileName) {

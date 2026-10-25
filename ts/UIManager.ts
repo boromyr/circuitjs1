@@ -920,6 +920,7 @@ export class UIManager {
         menuBar.addEventListener('click', () => this.mouse.doMainMenuChecks(), true);
 
         this.registerKeyHandlers();
+        this.registerCloseHandlers();
 
         window.addEventListener('beforeunload', (event) => {
             // there is a bug in electron that makes it impossible to close the app if this warning is given
@@ -2076,13 +2077,44 @@ export class UIManager {
 
     circuitTitle: string | null = null;
 
+    // true while the window title shows the "*" of a circuit changed since it was loaded or saved
+    private titleModified: boolean = false;
+
     setCircuitTitle(s: string | null): void {
         this.circuitTitle = s;
         this.titleLabel.textContent = s == null ? null : s.replace(/_/g, "_​");
-        if (s != null && s.length > 0)
-            document.title = s + " - " + CirSim.baseTitle;
-        else
-            document.title = CirSim.baseTitle;
+        this.updateWindowTitle();
+    }
+
+    private updateWindowTitle(): void {
+        const s = this.circuitTitle;
+        const name = (s != null && s.length > 0) ? s + " - " + CirSim.baseTitle : CirSim.baseTitle;
+        document.title = (this.titleModified ? "*" : "") + name;
+    }
+
+    // puts the "*" in the window title, or takes it out, to match the circuit
+    refreshModifiedTitle(): void {
+        const m = this.app.isModified();
+        if (m === this.titleModified)
+            return;
+        this.titleModified = m;
+        this.updateWindowTitle();
+    }
+
+    // Electron: closing a window with unsaved changes asks whether to save them first (main.js
+    // calls these, see askToSaveBeforeClose there)
+    private registerCloseHandlers(): void {
+        const w = window as any;
+        w.getCloseInfo = () => ({
+            modified: this.app.isModified(),
+            message: Locale.LS("Do you want to save the changes to the circuit before closing?"),
+            save: Locale.LS("Save"),
+            dontSave: Locale.LS("Don't Save"),
+            cancel: Locale.LS("Cancel"),
+        });
+        // true once the circuit is saved, false if the user cancelled the save dialog
+        w.saveBeforeClose = (): Promise<boolean> => this.app.commands.saveBeforeClose();
+        setInterval(() => this.refreshModifiedTitle(), 1000);
     }
 
     allowSave(b: boolean): void {

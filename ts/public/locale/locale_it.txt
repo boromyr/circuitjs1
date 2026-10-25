@@ -1831,3 +1831,5 @@
 "*One Preceeding NOT"="*Un NOT precedente"
 "Add Op Amp (real, - on top)"="Aggiungi Amplificatore Operazionale Reale (+ in basso)"
 "Add Op Amp (real, + on top)"="Aggiungi Amplificatore Operazionale Reale (+ in alto)"
+"Do you want to save the changes to the circuit before closing?"="Vuoi salvare le modifiche al circuito prima di chiudere?"
+"Don't Save"="Non salvare"

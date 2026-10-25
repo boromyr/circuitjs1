@@ -685,6 +685,7 @@ export class CommandManager {
         app.savedFlag = true;
         // saved: the session (Options > Reopen Last Circuit at Startup) reopens the file
         app.unsavedChanges = false;
+        app.ui.refreshModifiedTitle();
         app.repaint();
     }
 
@@ -692,6 +693,7 @@ export class CommandManager {
         const app = CirSim.theApp;
         app.savedFlag = true;
         app.unsavedChanges = false;
+        app.ui.refreshModifiedTitle();
         app.repaint();
     }
 
@@ -699,17 +701,27 @@ export class CommandManager {
         (window as any).newWindow?.();
     }
 
-    static electronSaveAs(dump: string): void {
-        (window as any).showSaveDialog?.().then((file: any) => {
-            if (file.canceled) return;
-            (window as any).saveFile(file, dump);
-            CommandManager.electronSaveAsCallback(file.filePath.toString());
-        });
+    // these resolve to true once the circuit is saved, false if there was no save (cancelled)
+    static async electronSaveAs(dump: string): Promise<boolean> {
+        const file = await (window as any).showSaveDialog?.();
+        if (file == null || file.canceled) return false;
+        (window as any).saveFile(file, dump);
+        CommandManager.electronSaveAsCallback(file.filePath.toString());
+        return true;
     }
 
-    static electronSave(dump: string): void {
+    // saves the circuit for Electron's close-window prompt: to its file, or by asking for one
+    saveBeforeClose(): Promise<boolean> {
+        const dump = this.app.dumpCircuit();
+        if (this.app.menus.saveFileItem.isEnabled())
+            return Promise.resolve(CommandManager.electronSave(dump));
+        return CommandManager.electronSaveAs(dump);
+    }
+
+    static electronSave(dump: string): boolean {
         (window as any).saveFile?.(null, dump);
         CommandManager.electronSaveCallback();
+        return true;
     }
 
     // prevFile: the current file before this one was read (preload.js makes the file read

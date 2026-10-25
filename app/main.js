@@ -296,6 +296,39 @@ ipcMain.on('remove-recent-file', (event, file) => {
 // only the first window may reopen the last circuit (Options > Reopen Last Circuit at Startup)
 var firstWindowMade = false;
 
+// true if the window may close: it has no unsaved changes, or they were saved or given up
+// (the texts come from the simulator page, which has the translations)
+async function askToSaveBeforeClose(win) {
+  var wc = win.webContents;
+  var info = null;
+  try {
+    info = await wc.executeJavaScript('window.getCloseInfo ? window.getCloseInfo() : null');
+  } catch (err) {
+    return true;
+  }
+  if (!info || !info.modified)
+    return true;
+  var r = await dialog.showMessageBox(win, {
+    type: 'warning',
+    buttons: [info.save, info.dontSave, info.cancel],
+    defaultId: 0,
+    cancelId: 2,
+    noLink: true,
+    title: 'CircuitJS',
+    message: info.message
+  });
+  if (r.response === 2)
+    return false;
+  if (r.response === 1)
+    return true;
+  try {
+    return !!(await wc.executeJavaScript('window.saveBeforeClose()'));
+  } catch (err) {
+    return false;
+  }
+}
+
+
 function createWindow () {
   // On Mac, use open-file event path; on Windows/Linux use argv[1]
   var fileToOpen = pendingOpenFile;
@@ -346,6 +379,24 @@ function createWindow () {
     if (i >= 0)
       windows.splice(i, 1);
   })
+
+  // Closing a window with unsaved changes asks whether to save them first
+  var closeConfirmed = false, closeAsking = false;
+  mainWindow.on('close', function (e) {
+    if (closeConfirmed)
+      return;
+    e.preventDefault();
+    if (closeAsking)
+      return;
+    closeAsking = true;
+    askToSaveBeforeClose(mainWindow).then(function (ok) {
+      closeAsking = false;
+      if (ok) {
+        closeConfirmed = true;
+        mainWindow.close();
+      }
+    });
+  });
 
   // The plot windows must stay scriptable by the simulator page (it draws into them): with
   // Electron 45 a child window no longer gets these from its opener, and window.open()
