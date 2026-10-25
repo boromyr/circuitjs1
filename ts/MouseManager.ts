@@ -56,6 +56,9 @@ export class MouseManager {
     tempMouseMode: number = MouseManager.MODE_SELECT;
     dragGridX: number = 0;
     dragGridY: number = 0;
+    altPanActive: boolean = false;
+    altPanX: number = 0;
+    altPanY: number = 0;
     dragScreenX: number = 0;
     dragScreenY: number = 0;
     initDragGridX: number = 0;
@@ -775,9 +778,26 @@ export class MouseManager {
 	this.mouseCursorX = this.getCanvasX(canvas, e.clientX);
 	this.mouseCursorY = this.getCanvasY(canvas, e.clientY);
 	if (this.mouseDragging) {
+	    this.altPanActive = false;
 	    this.mouseDragged(e);
 	    return;
 	}
+	// holding Alt on its own (no click needed) pans the circuit with the mouse
+	if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey &&
+		!this.sim.modalDialogIsShowing() && this.sim.circuitArea.contains(this.mouseCursorX, this.mouseCursorY)) {
+	    if (this.altPanActive) {
+		this.sim.transform[4] += this.mouseCursorX - this.altPanX;
+		this.sim.transform[5] += this.mouseCursorY - this.altPanY;
+		this.sim.repaint();
+	    }
+	    this.altPanActive = true;
+	    this.altPanX = this.mouseCursorX;
+	    this.altPanY = this.mouseCursorY;
+	    this.dragScreenX = this.mouseCursorX;
+	    this.dragScreenY = this.mouseCursorY;
+	    return;
+	}
+	this.altPanActive = false;
 	this.mouseSelect(e);
 	this.sim.scopeManager.scopeMenuSelected = -1;
     }

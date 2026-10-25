@@ -1911,6 +1911,13 @@ export class UIManager {
             this.keyPressedSinceShiftUp = false;
         }
 
+        // Alt on its own pans (see MouseManager.onMouseMove); keep the browser/OS from also
+        // treating the bare Alt press as a click on its menu bar
+        if (code === 18) {
+            this.mouse.altPanActive = false;
+            e.preventDefault();
+        }
+
         if (this.dialogIsShowing())
             return;
 
