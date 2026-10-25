@@ -293,7 +293,6 @@ export class Menus {
     noEditCheckItem          = new CheckItem();
     mouseWheelEditCheckItem  = new CheckItem(true);
     toolbarCheckItem         = new CheckItem(true);
-    showPropsOnCreateCheckItem = new CheckItem(true);
     reopenLastCheckItem      = new CheckItem();
 
     // File > Open Recent, only in the Electron app
@@ -485,9 +484,6 @@ export class Menus {
         }});
         optMenu.addCheckItem(this.toolbarCheckItem, "Toolbar");
         this.toolbarCheckItem.setCommand({ execute: () => this.app.ui?.setToolbar() });
-        optMenu.addCheckItem(this.showPropsOnCreateCheckItem, "Show Properties On Create");
-        this.showPropsOnCreateCheckItem.setCommand({ execute: () =>
-            this.app.ui?.setOptionInStorage("showPropsOnCreate", this.showPropsOnCreateCheckItem.getState()) });
         optMenu.addCheckItem(this.crossHairCheckItem, "Show Cursor Cross Hairs");
         this.crossHairCheckItem.setCommand({ execute: () =>
             this.app.ui?.setOptionInStorage("crossHair", this.crossHairCheckItem.getState()) });

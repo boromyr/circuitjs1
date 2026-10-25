@@ -703,8 +703,8 @@ export class UIManager {
             (this.app as any).startCircuit == null &&
             (this.app as any).startCircuitText == null &&
             (this.app as any).startCircuitLink == null);
-        this.menus.showPropsOnCreateCheckItem.setState(
-            this.getOptionFromStorage("showPropsOnCreate", this.menus.toolbarCheckItem.getState()));
+        this.app.showPropsOnCreate = this.getOptionFromStorage("showPropsOnCreate", false);
+        this.app.showPropsOnClick = this.getOptionFromStorage("showPropsOnClick", true);
         this.menus.crossHairCheckItem.setState(this.getOptionFromStorage("crossHair", false));
         this.menus.showGridCheckItem.setState(this.getOptionFromStorage("showGrid", true));
         this.menus.gridLinesCheckItem.setState(this.getOptionFromStorage("gridLines", false));
@@ -778,6 +778,7 @@ export class UIManager {
         }
 
         // toolbar: left of sidebar, below menu bar
+        this.toolbar.element.classList.add('mainToolbar');
         this.toolbar.element.style.position = 'absolute';
         this.toolbar.element.style.left = '0';
         this.toolbar.element.style.top = mbh + 'px';

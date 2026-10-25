@@ -111,6 +111,8 @@ export class CirSim {
     dumpMatrix: boolean = false;
     dcAnalysisFlag: boolean = false;
     autoDCOnReset: boolean = false;
+    showPropsOnCreate: boolean = false;
+    showPropsOnClick: boolean = true;
     // set by edits (pushUndo() and so on), even ones that change nothing, like a click;
     // isModified() checks whether the circuit really changed.  Clearing it (after a load
     // or save) takes a new savedDump after the next frame, once scopes are set up.
@@ -179,7 +181,7 @@ export class CirSim {
     static commandPalette: any = null; // non-null while the command palette popup is open
 
     static readonly baseTitle: string = "Circuit Simulator";
-    static readonly versionString: string = "5.0.1ts";
+    static readonly versionString: string = "5.0.3ts";
 
     // maps integer dump type code → class name (built by register())
     static dumpTypeMap: Map<number, string> = new Map();
