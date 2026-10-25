@@ -20,11 +20,13 @@
 import { CirSim } from "./CirSim";
 import { Dialog } from "./Dialog";
 import { DiodeModel } from "./DiodeModel";
+import { ExportAsLocalFileDialog } from "./ExportAsLocalFileDialog";
 import { EditDiodeModelDialog } from "./EditDiodeModelDialog";
 import { EditMosfetModelDialog } from "./EditMosfetModelDialog";
 import { EditSubcircuitModelDialog } from "./EditSubcircuitModelDialog";
 import { EditTransistorModelDialog } from "./EditTransistorModelDialog";
 import { ImportFromSpiceDialog } from "./ImportFromSpiceDialog";
+import { SpiceModelDatabase } from "./SpiceModelDatabase";
 import { Locale } from "./Locale";
 import { MosfetModel } from "./MosfetModel";
 import { SubcircuitElm } from "./SubcircuitElm";
@@ -87,6 +89,8 @@ export class ModelManagerDialog extends Dialog {
             hp.appendChild(b);
         };
         addButton("Import from SPICE...", () => new ImportFromSpiceDialog());
+        addButton("Export Database...", () => this.exportDatabase());
+        addButton("Import Database...", () => this.importDatabase());
         addButton("Close", () => this.closeDialog());
         this.dialogEl.appendChild(hp);
 
@@ -96,6 +100,34 @@ export class ModelManagerDialog extends Dialog {
             if (this.lastSeq1 !== SubcircuitModel.sequenceNumber || this.lastSeq2 !== UserModelLibrary.sequenceNumber)
                 this.refresh();
         }, 500);
+    }
+
+    // all the imported models in a JSON file
+    private exportDatabase(): void {
+        new ExportAsLocalFileDialog(SpiceModelDatabase.toJson(), "spice-models.json", "Export Database").show();
+    }
+
+    private importDatabase(): void {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".json,application/json,text/plain";
+        input.addEventListener("change", () => {
+            const f = input.files?.[0];
+            if (f == null)
+                return;
+            f.text().then(text => {
+                const log: string[] = [];
+                const n = SpiceModelDatabase.fromJson(text, log);
+                CirSim.theApp.updateModels();
+                CirSim.theApp.needAnalyze();
+                this.refresh();
+                CirSim.theApp.ui.showToast(Locale.LS("Imported models") + ": " + n.devices + ", " +
+                    Locale.LS("Subcircuits").toLowerCase() + ": " + n.subcircuits);
+                if (log.length > 0)
+                    window.alert(log.join("\n"));
+            });
+        });
+        input.click();
     }
 
     closeDialog(): void {
