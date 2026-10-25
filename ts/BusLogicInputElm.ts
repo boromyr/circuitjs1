@@ -17,6 +17,7 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { Font } from "./Font";
 import { SwitchElm } from "./SwitchElm";
 import { CircuitElm } from "./CircuitElm";
 import { CircuitNode } from "./CircuitNode";
@@ -104,7 +105,7 @@ export class BusLogicInputElm extends SwitchElm {
     draw(g: Graphics): void {
         g.save();
         const fontSize = 20;
-        g.context.font = "bold " + fontSize + "px SansSerif";
+        g.context.font = "bold " + fontSize + "px " + Font.FAMILY;
         g.setColor(this.needsHighlight() ? CircuitElm.selectColor : CircuitElm.whiteColor);
         const s = "" + this.value;
         this.interpPoint(this.point1, this.point2, this.lead1,

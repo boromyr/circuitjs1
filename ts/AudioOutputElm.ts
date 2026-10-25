@@ -17,6 +17,7 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { Font } from "./Font";
 import { CircuitElm } from "./CircuitElm";
 import { Graphics } from "./Graphics";
 import { Color } from "./Color";
@@ -134,7 +135,7 @@ export class AudioOutputElm extends CircuitElm {
         const selected = (this.needsHighlight());
         const fontSize = 14;
         const s = this.labelNum > 1 ? "Audio " + this.labelNum : "Audio Out";
-        g.context.font = (selected ? "bold " : "") + fontSize + "px SansSerif";
+        g.context.font = (selected ? "bold " : "") + fontSize + "px " + Font.FAMILY;
         const textWidth = Math.floor(g.context.measureText(s).width);
         g.setColor(Color.darkGray);
         const pct = this.dataFull ? textWidth : Math.floor(textWidth * this.dataPtr / this.dataCount);

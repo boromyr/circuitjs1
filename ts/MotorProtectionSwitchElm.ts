@@ -17,6 +17,7 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { Font } from "./Font";
 import { CircuitElm } from "./CircuitElm";
 import { Color } from "./Color";
 import { CircuitXMLSerializer } from "./CircuitXMLSerializer";
@@ -161,7 +162,7 @@ export class MotorProtectionSwitchElm extends CircuitElm {
             g.drawLine(i*spx-q, 112, i*spx, 112);
             g.drawLine(i*spx, 112, i*spx, 128);
             g.setColor(Color.lightGray);
-            ctx.font = "italic 30px serif";
+            ctx.font = "italic 30px " + Font.FAMILY;
             ctx.textBaseline = "middle";
             ctx.textAlign = "center";
             g.drawString("I >", i*spx, 80+48+48/2);
@@ -177,7 +178,7 @@ export class MotorProtectionSwitchElm extends CircuitElm {
             g.drawLine(squareX, squareY+12*i, squareX+24, squareY+12*i);
         g.drawLine(squareX-spx/2, squareY+12, squareX, squareY+12);
         g.drawLine(squareX-spx/2, squareY, squareX-spx/2, squareY+24);
-        ctx.font = "normal 12px sans-serif";
+        ctx.font = "normal 12px " + Font.FAMILY;
         g.setColor(Color.white);
         g.drawString(this.label, 120, squareY+12);
         ctx.restore();

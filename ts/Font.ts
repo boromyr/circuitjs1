@@ -20,14 +20,16 @@
 export class Font {
     static readonly BOLD = 1;
 
+    // same family as the menus (style.css); the Java font names ("SansSerif", "normal")
+    // are not CSS families and would fall back to the browser's default serif
+    static readonly FAMILY = "Arial Unicode MS, Arial, sans-serif";
+
     fontname: string;
     size: number;
 
     constructor(name: string, style: number, size: number) {
-        if (name === "SansSerif")
-            name = "sans-serif";
         const styleStr = (style & Font.BOLD) !== 0 ? "bold " : "normal ";
-        this.fontname = styleStr + size + "px " + name;
+        this.fontname = styleStr + size + "px " + Font.FAMILY;
         this.size = size;
     }
 }

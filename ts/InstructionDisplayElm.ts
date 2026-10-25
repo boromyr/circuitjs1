@@ -17,6 +17,7 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { Font } from "./Font";
 import { CircuitElm } from "./CircuitElm";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
@@ -162,7 +163,7 @@ export class InstructionDisplayElm extends CircuitElm {
         g.save();
         const selected = this.needsHighlight();
         const fontSize = 14;
-        g.context.font = (selected ? "bold " : "") + fontSize + "px SansSerif";
+        g.context.font = (selected ? "bold " : "") + fontSize + "px " + Font.FAMILY;
         g.setColor(selected ? CircuitElm.selectColor : CircuitElm.lightGrayColor);
         const s = this.getDisplayText();
         this.interpPoint(this.point1, this.point2, this.lead1,
