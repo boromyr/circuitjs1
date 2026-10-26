@@ -19,6 +19,7 @@
 
 import { CirSim } from "./CirSim";
 import { DiodeModel } from "./DiodeModel";
+import { HookRegistry } from "./HookRegistry";
 import { Locale } from "./Locale";
 import { MosfetModel } from "./MosfetModel";
 import { SubcircuitModel } from "./SubcircuitModel";
@@ -90,6 +91,32 @@ export class UserModelLibrary {
             }
         }
         UserModelLibrary.sequenceNumber++;
+    }
+
+    // device models made for the inside of subcircuits (their diodes, transistors and JFETs
+    // come with the model), unless they were imported on their own: not worth listing among
+    // the models of a diode or transistor
+    static getSubcircuitInternalModelNames(): Set<string> {
+        const names = new Set<string>();
+        const scan = (m: SubcircuitModel) => {
+            if (m.elmDoc == null)
+                return;
+            for (const child of Array.from(m.elmDoc.documentElement.children)) {
+                const mo = child.getAttribute("mo");
+                if (mo != null)
+                    names.add(mo);
+                const nm = child.getAttribute("nm");
+                if (nm != null && (child.tagName === "dm" || child.tagName === "tm" || child.tagName === "mm"))
+                    names.add(nm);
+            }
+        };
+        for (const m of SubcircuitModel.globalModelMap.values())
+            scan(m);
+        for (const m of SubcircuitModel.localModelMap.values())
+            scan(m);
+        for (const n of UserModelLibrary.entries.keys())
+            names.delete(n);
+        return names;
     }
 
     static getEntries(): UserModelEntry[] {
@@ -406,3 +433,5 @@ export class UserModelLibrary {
         return (t !== s) ? t : Locale.LS("&nbsp;</div>" + s).replace(/&nbsp;<\/div>/gi, "");
     }
 }
+
+HookRegistry.getSubcircuitInternalModelNames = () => UserModelLibrary.getSubcircuitInternalModelNames();

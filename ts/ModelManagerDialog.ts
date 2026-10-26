@@ -141,10 +141,12 @@ export class ModelManagerDialog extends Dialog {
             return ModelManagerDialog.GROUP_SUBCIRCUIT;
         if (s === SubcircuitSymbols.SYM_OPAMP)
             return ModelManagerDialog.GROUP_OPAMP;
-        if (s === "diode")
+        if (SubcircuitSymbols.isDiode(s))
             return ModelManagerDialog.GROUP_DIODE;
-        if (s === "npn" || s === "pnp")
+        if (SubcircuitSymbols.isBjt(s))
             return ModelManagerDialog.GROUP_BJT;
+        if (SubcircuitSymbols.isJfet(s))
+            return ModelManagerDialog.GROUP_JFET;
         return ModelManagerDialog.GROUP_MOSFET;
     }
 

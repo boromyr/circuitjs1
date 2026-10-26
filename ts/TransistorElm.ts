@@ -670,7 +670,7 @@ export class TransistorElm extends CircuitElm {
             return EditInfo.createCheckbox("Draw Circle", this.hasCircle());
         if (n === 3) {
             const ei = new EditInfo("Model", 0, -1, -1);
-            this.models = TransistorModel.getModelList();
+            this.models = TransistorModel.getModelList(this.model);
             ei.choice = new Choice();
             for (let i = 0; i !== this.models.length; i++) {
                 const dm = this.models[i];

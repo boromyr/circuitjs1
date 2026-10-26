@@ -242,7 +242,7 @@ export class OptocouplerElm extends CompositeElm {
             return new EditInfo("CTR Scale", this.ctr, 0, 0).setDimensionless();
         if (n === 1) {
             const ei = new EditInfo("LED Model", 0, -1, -1);
-            this.models = DiodeModel.getModelList(false);
+            this.models = DiodeModel.getModelList(DiodeModel.KIND_LED, this.diode.model);
             ei.choice = new Choice();
             for (let i = 0; i !== this.models.length; i++) {
                 const dm = this.models[i];

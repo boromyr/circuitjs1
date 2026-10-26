@@ -235,3 +235,16 @@ describe("nested subcircuits", () => {
         expect(new SpiceImport(() => {}).parse(reordered)!.name).toBe("det");
     });
 });
+
+describe("guessSymbol for diode and JFET types", () => {
+    const header = (title: string, nodes: string) => SpiceImport.analyzeHeader("* " + title + "\n.SUBCKT X " + nodes + "\n.ENDS\n");
+    it("tells Zener and Schottky diodes from plain ones", () => {
+        expect(SpiceImport.guessSymbol(header("1N4733 Zener diode", "a k"))).toBe("zener");
+        expect(SpiceImport.guessSymbol(header("BAT54 Schottky diode", "a k"))).toBe("schottky");
+        expect(SpiceImport.guessSymbol(header("1N4148 diode", "a k"))).toBe("diode");
+    });
+    it("recognizes JFETs", () => {
+        expect(SpiceImport.guessSymbol(header("J201 N-channel JFET", "d g s"))).toBe("njfet");
+        expect(SpiceImport.guessSymbol(header("P-channel JFET", "d g s"))).toBe("pjfet");
+    });
+});

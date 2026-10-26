@@ -17,6 +17,7 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { HookRegistry } from "./HookRegistry";
 import type { Editable } from "./Editable";
 import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
@@ -220,11 +221,15 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
     }
 
     // jfet selects whether to return models meant for JfetElm or for MosfetElm
-    static getModelList(jfet: boolean): MosfetModel[] {
+    static getModelList(jfet: boolean, keep: MosfetModel | null = null): MosfetModel[] {
         MosfetModel.createModelMap();
         const vector: MosfetModel[] = [];
+        const hidden = HookRegistry.getSubcircuitInternalModelNames?.() ?? new Set<string>();
         for (const [, mm] of MosfetModel.modelMap) {
             if (mm.internal || mm.isJfet() !== jfet)
+                continue;
+            // the generic model of the old JFET format only comes from imported subcircuits and old circuits
+            if (mm !== keep && (hidden.has(mm.name) || (jfet && mm.name.startsWith("old-jfet"))))
                 continue;
             if (!vector.includes(mm))
                 vector.push(mm);

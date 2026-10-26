@@ -17,6 +17,7 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { HookRegistry } from "./HookRegistry";
 import type { Editable } from "./Editable";
 import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
@@ -138,6 +139,10 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         DiodeModel.addDefaultModel("spice-default", new DiodeModel(1e-14, 0, 1, 0, null));
         DiodeModel.addDefaultModel("default", new DiodeModel(1.7143528192808883e-7, 0, 2, 0, null));
         DiodeModel.addDefaultModel("default-zener", new DiodeModel(1.7143528192808883e-7, 0, 2, 5.6, null));
+        // the standard voltages are picked in the quick list of the Zener, not in its model list
+        for (const v of DiodeModel.ZENER_VOLTAGES)
+            DiodeModel.addDefaultModel(DiodeModel.getZenerModelName(v),
+                new DiodeModel(1.7143528192808883e-7, 0, 2, v, null).setInternal());
 
         // old default LED with saturation current that is way too small (causes numerical errors)
         DiodeModel.addDefaultModel("old-default-led", new DiodeModel(2.2349907006671927e-18, 0, 2, 0, null).setInternal());
@@ -229,12 +234,43 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
             dm.dumped = false;
     }
 
-    static getModelList(zener: boolean): DiodeModel[] {
+    static readonly KIND_DIODE = "diode";
+    static readonly KIND_ZENER = "zener";
+    static readonly KIND_SCHOTTKY = "schottky";
+    static readonly KIND_LED = "led";
+
+    // standard Zener voltages (E24 series and the usual higher ones)
+    static readonly ZENER_VOLTAGES = [2.4, 2.7, 3, 3.3, 3.6, 3.9, 4.3, 4.7, 5.1, 5.6, 6.2, 6.8, 7.5, 8.2, 9.1,
+        10, 11, 12, 13, 15, 16, 18, 20, 22, 24, 27, 30, 33, 36, 39, 43, 47, 51, 56, 62, 68, 75, 82, 91, 100];
+
+    static getZenerModelName(v: number): string { return "zener-" + v + "V"; }
+
+    // what the model is for, so each component lists only its own: guessed from the description,
+    // the name and the breakdown voltage (imported models have no other hint)
+    getKind(): string {
+        const n = this.name.toLowerCase();
+        if (this.description === "Schottky" || /schottky|^bat\d|^sb\d|^mbr|^1n58\d\d/.test(n))
+            return DiodeModel.KIND_SCHOTTKY;
+        if (/(^|[^a-z])led([^a-z]|$)/.test(n))
+            return DiodeModel.KIND_LED;
+        if (n === "default-zener" || this.description === "Zener" ||
+                /zener|^bzx|^bzv|^bzt|^mmsz|^1n4[67]\d\d|^1n5[23]\d\d/.test(n) ||
+                (this.breakdownVoltage > 0 && (this.oldStyle || (!this.builtIn && this.breakdownVoltage <= 50))))
+            return DiodeModel.KIND_ZENER;
+        return DiodeModel.KIND_DIODE;
+    }
+
+    // models for a component of the given kind.  keep: the model in use, listed even if it
+    // would be left out.
+    static getModelList(kind: string, keep: DiodeModel | null = null): DiodeModel[] {
         const vector: DiodeModel[] = [];
+        const hidden = HookRegistry.getSubcircuitInternalModelNames?.() ?? new Set<string>();
         for (const [, dm] of DiodeModel.modelMap) {
-            if (dm.internal)
+            if (dm.internal && dm !== keep)
                 continue;
-            if (zener && dm.breakdownVoltage === 0)
+            if (dm !== keep && hidden.has(dm.name))
+                continue;
+            if (dm !== keep && dm.getKind() !== kind)
                 continue;
             if (!vector.includes(dm))
                 vector.push(dm);

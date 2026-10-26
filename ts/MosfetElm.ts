@@ -791,7 +791,7 @@ export class MosfetElm extends CircuitElm {
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Model", 0, -1, -1);
-            this.models = MosfetModel.getModelList(this.isJfet());
+            this.models = MosfetModel.getModelList(this.isJfet(), this.model);
             ei.choice = new Choice();
             for (let i = 0; i !== this.models.length; i++) {
                 const mm = this.models[i];

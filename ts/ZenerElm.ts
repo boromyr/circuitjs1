@@ -21,7 +21,10 @@
 // http://www.camotruck.net/rollins/simulator.html
 
 import { DiodeElm } from "./DiodeElm";
+import { Choice } from "./Choice";
 import { DiodeModel } from "./DiodeModel";
+import { EditInfo } from "./EditInfo";
+import { Locale } from "./Locale";
 import { Graphics } from "./Graphics";
 import { Point } from "./Point";
 import { Polygon } from "./Polygon";
@@ -107,6 +110,38 @@ export class ZenerElm extends DiodeElm {
     }
 
     isZenerElm(): boolean { return true; }
+    getModelKind(): string { return DiodeModel.KIND_ZENER; }
+
+    // the quick list of standard voltages comes right after the model list
+    getEditInfo(n: number): EditInfo | null {
+        if (n === 1) {
+            const ei = new EditInfo("Standard Voltage", 0, -1, -1);
+            ei.choice = new Choice();
+            ei.choice.add(Locale.LS("(custom)"));
+            ei.choice.select(0);
+            DiodeModel.ZENER_VOLTAGES.forEach((v, i) => {
+                ei.choice!.add(v + " V");
+                if (this.model.name === DiodeModel.getZenerModelName(v))
+                    ei.choice!.select(i + 1);
+            });
+            return ei;
+        }
+        return super.getEditInfo(n > 1 ? n - 1 : n);
+    }
+
+    setEditValue(n: number, ei: EditInfo): void {
+        if (n === 1) {
+            const i = ei.choice!.getSelectedIndex() - 1;
+            if (i < 0)
+                return;
+            this.model = DiodeModel.getModelWithName(DiodeModel.getZenerModelName(DiodeModel.ZENER_VOLTAGES[i]));
+            this.modelName = this.model.name;
+            this.setup();
+            ei.newDialog = true;
+            return;
+        }
+        super.setEditValue(n > 1 ? n - 1 : n, ei);
+    }
 
     getShortcut(): number { return 'z'.charCodeAt(0); }
 

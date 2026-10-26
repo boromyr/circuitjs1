@@ -194,14 +194,14 @@ export class SpiceImport {
                 return 4;
             return -1;
         }
-        if (sym === "diode") {
+        if (SubcircuitSymbols.isDiode(sym)) {
             if (has(d, "anode") || is(d, "a", "+", "p"))
                 return 0;
             if (has(d, "cathode") || is(d, "k", "c", "-", "n"))
                 return 1;
             return -1;
         }
-        if (sym === "npn" || sym === "pnp") {
+        if (SubcircuitSymbols.isBjt(sym)) {
             if (has(d, "base") || is(d, "b"))
                 return 0;
             if (has(d, "collector") || is(d, "c"))
@@ -239,8 +239,10 @@ export class SpiceImport {
                 SpiceImport.countPins(h, SubcircuitSymbols.SYM_OPAMP) >= 3 || nc === 5))
             return SubcircuitSymbols.SYM_OPAMP;
         if (nc === 2 && (has(t, "diode", "zener", "rectifier", "schottky", "led") || SpiceImport.countPins(h, "diode") === 2))
-            return "diode";
+            return has(t, "zener") ? "zener" : has(t, "schottky") ? "schottky" : "diode";
         if (nc >= 3 && nc <= 4) {
+            if (has(t, "jfet", "j-fet", "njf", "pjf"))
+                return has(t, "pjf", "p-channel", "p-ch", "pch") ? "pjfet" : "njfet";
             if (has(t, "mosfet", "nmos", "pmos", "n-channel", "p-channel", "n-ch", "p-ch", "nch", "pch") || SpiceImport.countPins(h, "nmos") === 3)
                 return has(t, "pmos", "p-channel", "p-ch", "pch") ? "pmos" : "nmos";
             if (has(t, "npn", "pnp", "darlington", "transistor", "bjt") || SpiceImport.countPins(h, "npn") === 3)
@@ -253,9 +255,9 @@ export class SpiceImport {
     static getDefaultPinOrder(sym: string): number[] {
         if (sym === SubcircuitSymbols.SYM_OPAMP)
             return [1, 0, 3, 4, 2];  // +in -in V+ V- out
-        if (sym === "diode")
+        if (SubcircuitSymbols.isDiode(sym))
             return [0, 1];           // anode cathode
-        if (sym === "npn" || sym === "pnp")
+        if (SubcircuitSymbols.isBjt(sym))
             return [1, 0, 2];        // collector base emitter
         return [2, 0, 1];            // drain gate source
     }

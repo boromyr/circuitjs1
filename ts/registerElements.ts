@@ -155,6 +155,7 @@ import { WattmeterTrueElm } from "./WattmeterTrueElm";
 import { WireElm } from "./WireElm";
 import { XnorGateElm } from "./XnorGateElm";
 import { XorGateElm } from "./XorGateElm";
+import { SchottkyElm } from "./SchottkyElm";
 import { ZenerElm } from "./ZenerElm";
 
 export function registerElements(): void {
@@ -311,6 +312,7 @@ export function registerElements(): void {
     ElementFactory.registerClass("WireElm", WireElm as any);
     ElementFactory.registerClass("XnorGateElm", XnorGateElm as any);
     ElementFactory.registerClass("XorGateElm", XorGateElm as any);
+    ElementFactory.registerClass("SchottkyElm", SchottkyElm as any);
     ElementFactory.registerClass("ZenerElm", ZenerElm as any);
 
     CirSim.theApp.register("ACRailElm", new ACRailElm(0, 0));
@@ -461,6 +463,7 @@ export function registerElements(): void {
     CirSim.theApp.register("WireElm", new WireElm(0, 0));
     CirSim.theApp.register("XnorGateElm", new XnorGateElm(0, 0));
     CirSim.theApp.register("XorGateElm", new XorGateElm(0, 0));
+    CirSim.theApp.register("SchottkyElm", new SchottkyElm(0, 0));
     CirSim.theApp.register("ZenerElm", new ZenerElm(0, 0));
 
     // registered last — constructor triggers model loading which requires other elements

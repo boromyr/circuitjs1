@@ -24,16 +24,21 @@
 export class SubcircuitSymbols {
     static readonly SYM_OPAMP = "opamp";
     // pins are listed in post order
-    static readonly symbolKeys = [SubcircuitSymbols.SYM_OPAMP, "diode", "npn", "pnp", "nmos", "pmos"];
+    static readonly symbolKeys = [SubcircuitSymbols.SYM_OPAMP, "diode", "zener", "schottky", "npn", "pnp",
+        "nmos", "pmos", "njfet", "pjfet"];
     static readonly symbolLabels = [
-        "Op-amp", "Diode", "Transistor (bipolar, NPN)", "Transistor (bipolar, PNP)",
-        "MOSFET (N-Channel)", "MOSFET (P-Channel)",
+        "Op-amp", "Diode", "Zener Diode", "Schottky Diode", "Transistor (bipolar, NPN)", "Transistor (bipolar, PNP)",
+        "MOSFET (N-Channel)", "MOSFET (P-Channel)", "JFET (N-Channel)", "JFET (P-Channel)",
     ];
     static readonly symbolPins: string[][] = [
         ["inverting input (-)", "non-inverting input (+)", "output (out)", "positive supply (V+)", "negative supply (V-)"],
         ["anode (A)", "cathode (K)"],
+        ["anode (A)", "cathode (K)"],
+        ["anode (A)", "cathode (K)"],
         ["base (B)", "collector (C)", "emitter (E)"],
         ["base (B)", "collector (C)", "emitter (E)"],
+        ["gate (G)", "source (S)", "drain (D)"],
+        ["gate (G)", "source (S)", "drain (D)"],
         ["gate (G)", "source (S)", "drain (D)"],
         ["gate (G)", "source (S)", "drain (D)"],
     ];
@@ -41,16 +46,26 @@ export class SubcircuitSymbols {
     static readonly symbolPinNames: string[][] = [
         ["V-in", "V+in", "Vout", "V+", "V-"],
         ["Va", "Vk"],
+        ["Va", "Vk"],
+        ["Va", "Vk"],
         ["Vb", "Vc", "Ve"],
         ["Vb", "Vc", "Ve"],
+        ["Vg", "Vs", "Vd"],
+        ["Vg", "Vs", "Vd"],
         ["Vg", "Vs", "Vd"],
         ["Vg", "Vs", "Vd"],
     ];
     // menu each symbol goes in by default (op-amps aren't in the menus, see OpAmpRealElm)
-    static readonly symbolCategories = ["activeBloc", "active", "active", "active", "active", "active"];
+    static readonly symbolCategories = ["activeBloc", "active", "active", "active", "active", "active",
+        "active", "active", "active", "active"];
 
     // menu category of subcircuits without a symbol
     static readonly CAT_SUBCIRCUITS = "subcircuits";
+
+    static isDiode(sym: string | null): boolean { return sym === "diode" || sym === "zener" || sym === "schottky"; }
+    static isBjt(sym: string | null): boolean { return sym === "npn" || sym === "pnp"; }
+    static isJfet(sym: string | null): boolean { return sym === "njfet" || sym === "pjfet"; }
+    static isMosfet(sym: string | null): boolean { return sym === "nmos" || sym === "pmos"; }
 
     static getSymbolIndex(sym: string | null): number {
         return sym == null ? -1 : SubcircuitSymbols.symbolKeys.indexOf(sym);

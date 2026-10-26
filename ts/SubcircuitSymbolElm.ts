@@ -78,13 +78,14 @@ export class SubcircuitSymbolElm extends CompositeElm {
 
     // set up the element used to draw the symbol
     initSymbol(defaultFlags: boolean): void {
-        const cls = this.symbol === "npn" ? "NTransistorElm" :
-            this.symbol === "pnp" ? "PTransistorElm" :
-            this.symbol === "nmos" ? "NMosfetElm" :
-            this.symbol === "pmos" ? "PMosfetElm" : null;
-        if (cls == null)
+        const classes: { [sym: string]: string } = {
+            diode: "DiodeElm", zener: "ZenerElm", schottky: "SchottkyElm",
+            npn: "NTransistorElm", pnp: "PTransistorElm", nmos: "NMosfetElm", pmos: "PMosfetElm",
+            njfet: "NJfetElm", pjfet: "PJfetElm",
+        };
+        if (classes[this.symbol] == null)
             this.symbol = SubcircuitSymbolElm.DEFAULT_SYMBOL;
-        this.drawElm = CirSim.constructElement(cls ?? "DiodeElm", this.x, this.y);
+        this.drawElm = CirSim.constructElement(classes[this.symbol], this.x, this.y);
         this.symbolIndex = SubcircuitSymbols.getSymbolIndex(this.symbol);
         if (defaultFlags)
             this.symFlags = this.drawElm.flags;
@@ -177,12 +178,14 @@ export class SubcircuitSymbolElm extends CompositeElm {
         for (let i = 0; i !== n; i++)
             this.drawElm.nodes[i] = (i < this.numPosts) ? this.nodes[i] : CircuitNode.ground;
         // currents used by the symbol to draw the dots
-        if (this.symbol === "npn" || this.symbol === "pnp") {
+        if (SubcircuitSymbols.isBjt(this.symbol)) {
             this.drawElm.ib = -this.getPinCurrent(0);
             this.drawElm.ic = -this.getPinCurrent(1);
             this.drawElm.ie = -this.getPinCurrent(2);
-        } else if (this.symbol === "nmos" || this.symbol === "pmos") {
+        } else if (SubcircuitSymbols.isMosfet(this.symbol) || SubcircuitSymbols.isJfet(this.symbol)) {
             this.drawElm.ids = -this.getPinCurrent(2);
+            if (SubcircuitSymbols.isJfet(this.symbol))
+                this.drawElm.gateCurrent = -this.getPinCurrent(0);
         } else
             this.drawElm.current = -this.getPinCurrent(0);
         this.drawElm.setSelected(this.needsHighlight());

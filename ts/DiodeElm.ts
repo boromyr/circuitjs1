@@ -212,7 +212,7 @@ export class DiodeElm extends CircuitElm {
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) {
             const ei = new EditInfo("Model", 0, -1, -1);
-            this.models = DiodeModel.getModelList(this.isZenerElm());
+            this.models = DiodeModel.getModelList(this.getModelKind(), this.model);
             ei.choice = new Choice();
             for (let i = 0; i !== this.models.length; i++) {
                 const dm = this.models[i];
@@ -282,6 +282,9 @@ export class DiodeElm extends CircuitElm {
     }
 
     isZenerElm(): boolean { return false; }
+
+    // which models the model list shows (see DiodeModel.getKind())
+    getModelKind(): string { return DiodeModel.KIND_DIODE; }
 
     getShortcut(): number { return 'd'.charCodeAt(0); }
 

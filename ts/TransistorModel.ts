@@ -17,6 +17,7 @@
     along with CircuitJS1.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+import { HookRegistry } from "./HookRegistry";
 import type { Editable } from "./Editable";
 import { EditInfo } from "./EditInfo";
 import { StringTokenizer } from "./StringTokenizer";
@@ -223,10 +224,13 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
             tm.dumped = false;
     }
 
-    static getModelList(): TransistorModel[] {
+    static getModelList(keep: TransistorModel | null = null): TransistorModel[] {
         const vector: TransistorModel[] = [];
+        const hidden = HookRegistry.getSubcircuitInternalModelNames?.() ?? new Set<string>();
         for (const [, tm] of TransistorModel.modelMap) {
             if (tm.internal)
+                continue;
+            if (tm !== keep && hidden.has(tm.name))
                 continue;
             if (!vector.includes(tm))
                 vector.push(tm);

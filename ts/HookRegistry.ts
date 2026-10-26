@@ -35,4 +35,6 @@ export const HookRegistry = {
     resetGroundNodeList:         null as (() => void) | null,
     resetLabeledNodeList:        null as (() => void) | null,
     getLabeledNode:              null as ((name: string) => any) | null,
+    // names of the device models that belong to imported subcircuits, to keep out of the model lists
+    getSubcircuitInternalModelNames: null as (() => Set<string>) | null,
 };

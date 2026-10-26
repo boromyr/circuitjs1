@@ -69,7 +69,7 @@ export class Toolbar {
         const capacitorInfo = [this.capacitorIcon, "CapacitorElm", this.polarCapacitorIcon, "PolarCapacitorElm"];
         this.element.appendChild(this.createButtonSet(capacitorInfo));
         this.element.appendChild(this.createIconButtonForClass(this.inductIcon, "InductorElm"));
-        const diodeInfo = [this.diodeIcon, "DiodeElm", this.zenerIcon, "ZenerElm", this.ledIcon, "LEDElm",
+        const diodeInfo = [this.diodeIcon, "DiodeElm", this.zenerIcon, "ZenerElm", this.schottkyIcon, "SchottkyElm", this.ledIcon, "LEDElm",
                            this.varactorIcon, "VaractorElm", this.tunnelDiodeIcon, "TunnelDiodeElm"];
         this.element.appendChild(this.createButtonSet(diodeInfo));
         const srcInfo = [this.voltage2Icon, "DCVoltageElm", this.acSrcIcon, "ACVoltageElm"];
@@ -447,6 +447,7 @@ export class Toolbar {
 
     // diode variants and JFETs, drawn on the 24x24 grid of the other icons
     readonly zenerIcon = "<svg><g fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M1 12 L7 12'/><path d='M7 5 L7 19 L17 12 Z'/><path d='M14.5 7 L17 5 L17 19 L19.5 17'/><path d='M17 12 L23 12'/></g></svg>";
+    readonly schottkyIcon = "<svg><g fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M1 12 L7 12'/><path d='M7 5 L7 19 L17 12 Z'/><path d='M14 8 L14 5 L17 5 L17 19 L20 19 L20 16'/><path d='M17 12 L23 12'/></g></svg>";
     readonly ledIcon = "<svg><g fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M1 15 L6 15'/><path d='M6 8 L6 22 L16 15 Z'/><path d='M16 8 L16 22'/><path d='M16 15 L23 15'/><path d='M9 6 L14 1'/><path d='M11 1 L14 1 L14 4'/><path d='M14 9 L19 4'/><path d='M16 4 L19 4 L19 7'/></g></svg>";
     readonly varactorIcon = "<svg><g fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M1 12 L6 12'/><path d='M6 5 L6 19 L14 12 Z'/><path d='M14 5 L14 19'/><path d='M17 5 L17 19'/><path d='M17 12 L23 12'/></g></svg>";
     readonly tunnelDiodeIcon = "<svg><g fill='none' stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><path d='M1 12 L7 12'/><path d='M7 5 L7 19 L17 12 Z'/><path d='M15 5 L17 5 L17 19 L15 19'/><path d='M17 12 L23 12'/></g></svg>";

@@ -133,6 +133,8 @@ export class LEDElm extends DiodeElm {
             arr[0] = Locale.LS("LED") + " (" + this.modelName + ")";
     }
 
+    getModelKind(): string { return DiodeModel.KIND_LED; }
+
     getEditInfo(n: number): EditInfo | null {
         if (n === 0) return new EditInfo("Red Value (0-1)",             this.colorR,              0, 1).setDimensionless();
         if (n === 1) return new EditInfo("Green Value (0-1)",           this.colorG,              0, 1).setDimensionless();

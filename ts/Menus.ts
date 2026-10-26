@@ -630,6 +630,7 @@ export class Menus {
         this.makeClassCheckItems(activeMenu, [
             "Add Diode",                          "DiodeElm",
             "Add Zener Diode",                    "ZenerElm",
+            "Add Schottky Diode",                 "SchottkyElm",
             "Add Transistor (bipolar, NPN)",      "NTransistorElm",
             "Add Transistor (bipolar, PNP)",      "PTransistorElm",
             "Add MOSFET (N-Channel)",             "NMosfetElm",
