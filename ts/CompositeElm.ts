@@ -229,19 +229,13 @@ export abstract class CompositeElm extends CircuitElm {
             }
         }
 
-        // Flatten compNodeHash in to compNodeList: external nodes first
-        try {
-            for (let i = 0; i < this.extNodeIds.length; i++) {
-                const id = this.extNodeIds[i];
-                if (compNodeHash.has(id)) {
-                    this.compNodeList.push(compNodeHash.get(id)!);
-                    compNodeHash.delete(id);
-                } else
-                    throw new Error("missing external node");
-            }
-        } catch (e) {
-            this.compNodeList = null;
-            return;
+        // Flatten compNodeHash in to compNodeList: external nodes first.  A pin that no
+        // element uses (a SPICE model may leave pins unconnected inside) gets a node of its own.
+        for (let i = 0; i < this.extNodeIds.length; i++) {
+            const id = this.extNodeIds[i];
+            const cn = compNodeHash.get(id) ?? new CircuitNode();
+            this.compNodeList.push(cn);
+            compNodeHash.delete(id);
         }
         for (const [, cn] of compNodeHash)
             this.compNodeList.push(cn);

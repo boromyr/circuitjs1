@@ -79,7 +79,8 @@ export class SpiceImport {
             if (s.length === 0)
                 continue;
             if (s.startsWith("+") && vec.length > 0)
-                vec[vec.length - 1] += s.substring(1);
+                // a continuation always separates tokens ("+PULSE" must not glue to the previous one)
+                vec[vec.length - 1] += " " + s.substring(1);
             else
                 vec.push(s);
         }
@@ -333,7 +334,7 @@ export class SpiceImport {
         const extList: ExtListEntry[] = [];
         let subcircuitName: string | null = null;
         let subcircuitDisplayName = "";
-        const parseNumber = UserModelLibrary.parseNumber;
+        const parseNumber = SpiceImport.parseValue;
 
         // first pass, get a list of models and nodes
         for (const line of lines) {
@@ -512,9 +513,19 @@ export class SpiceImport {
                     const n1 = st.nextToken();
                     const n2 = st.nextToken();
                     const cap = parseNumber(st.nextToken());
+                    // a capacitor of 0 (a parameter expression can give one) is an open circuit
+                    if (cap === 0)
+                        continue;
+                    // IC=x is the voltage on reset
+                    let ic = 0;
+                    while (st.hasMoreTokens()) {
+                        const m = /^ic=(.+)$/.exec(st.nextToken());
+                        if (m != null)
+                            ic = parseNumber(m[1]);
+                    }
                     this.elmDump += "CapacitorElm " + this.findNode(n1) + " " + this.findNode(n2) + "\r";
                     // add FLAG_BACK_EULER because that is probably the most appropriate setting for spice models
-                    this.ldump = "2 " + cap + " 0 0";
+                    this.ldump = "2 " + cap + " " + ic + " " + ic;
                 } else if (c === 'r') {
                     const n1 = st.nextToken();
                     const n2 = st.nextToken();
@@ -615,12 +626,33 @@ export class SpiceImport {
                     let x = st.nextToken();
                     if (x === "dc")
                         x = st.nextToken();
-                    const v = parseNumber(x);
                     // higher voltage node comes first for spice, last for us.
                     // rather than swap nodes, swap the sign of the voltage because
                     // it simplifies things for controlled sources
                     this.elmDump += "VoltageElm " + this.findNode(n1) + " " + this.findNode(n2) + "\r";
-                    this.ldump = "0 0 0 " + (-v);
+                    const wave = /^(pulse|sin)\b/.exec(x);
+                    if (wave != null) {
+                        // PULSE(v1 v2 td tr tf pw per) and SIN(vo va freq ...): the parentheses are
+                        // optional.  Delay, rise and fall times, damping are not in the dump format.
+                        const args = line.substring(line.toLowerCase().indexOf(wave[1]) + wave[1].length)
+                            .replace(/[()]/g, " ").trim().split(/\s+/).filter(s => s.length > 0 && !s.includes("="));
+                        const num = (i: number, def: number) => (i < args.length) ? parseNumber(args[i]) : def;
+                        if (wave[1] === "sin") {
+                            // waveform 1 = WF_AC: frequency, amplitude, offset, phase, duty
+                            this.ldump = "0 1 " + num(2, 0) + " " + (-num(1, 0)) + " " + (-num(0, 0)) + " 0 0.5";
+                        } else {
+                            const v1 = num(0, 0);
+                            const v2 = num(1, 0);
+                            const pw = num(5, 0);
+                            const per = num(6, 0);
+                            if (per > 0 && pw > 0 && pw < per)
+                                // flags 4 = FLAG_PULSE_DUTY, waveform 5 = WF_PULSE: low level is the bias
+                                this.ldump = "4 5 " + (1 / per) + " " + (-(v2 - v1)) + " " + (-v1) + " 0 " + (pw / per);
+                            else
+                                this.ldump = "0 0 0 " + (-v1);
+                        }
+                    } else
+                        this.ldump = "0 0 0 " + (-parseNumber(x));
                 } else if (c === 'b' || ((c === 'e' || c === 'g') && /\svalue\b/i.test(line))) {
                     this.parseValueSource(c, line);
                 } else if (c === 'e') {
@@ -721,6 +753,17 @@ export class SpiceImport {
         this.ldump = "0 " + inputs.length + " " + expr;
     }
 
+    // a number with an optional suffix, or a constant expression in braces: {1/12}
+    private static parseValue(s: string): number {
+        if (s.startsWith("{") && s.endsWith("}")) {
+            const x = SpiceNetlist.evalConst(s.substring(1, s.length - 1));
+            if (x == null)
+                throw new Error("bad number: " + s);
+            return x;
+        }
+        return UserModelLibrary.parseNumber(s);
+    }
+
     private static getLetter(ch: number): string {
         return String.fromCharCode('a'.charCodeAt(0) + ch);
     }
@@ -755,7 +798,7 @@ export class SpiceImport {
                 // get second node for voltage controlled source
                 n4 = st.nextToken();
             }
-            const mult = UserModelLibrary.parseNumber(st.nextToken());
+            const mult = SpiceImport.parseValue(st.nextToken());
             this.elmDump += cls + " " + this.findNode(n3) + " " + this.findNode(n4) + " " + this.findNode(n1) + " " + this.findNode(n2) + "\r";
             this.ldump = flags + " 2 " + mult + "*(a-b)";
             return;

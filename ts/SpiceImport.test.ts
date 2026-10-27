@@ -115,6 +115,42 @@ describe("TL072 conversion", () => {
     });
 });
 
+describe("waveform sources", () => {
+    const convert = (vline: string) => {
+        const log: string[] = [];
+        const sub = new SpiceImport(s => log.push(s)).parse(".SUBCKT T A B\nR1 A B 1k\n" + vline + "\n.ENDS\n");
+        expect(sub, log.join("\n")).not.toBeNull();
+        const lines = sub!.elmDump.split("\r").filter(l => l.length > 0);
+        const i = lines.findIndex(l => l.startsWith("VoltageElm"));
+        return CustomLogicModel.unescape(sub!.dump.split(" ")[i]);
+    };
+    it("converts PULSE, also on a continuation line", () => {
+        // 0 -> 1 V, 20 ns wide every 2 us: flags 4, pulse, 500 kHz, -1 V swing, no bias, duty 0.01
+        expect(convert("V1 A 0\n+PULSE 0 1 0 1n 1n 20n 2u")).toBe("4 5 500000 -1 0 0 0.01");
+        expect(convert("V1 A 0 PULSE(1 3 0 0 0 1u 4u)")).toBe("4 5 250000 -2 -1 0 0.25");
+    });
+    it("evaluates a gain in braces", () => {
+        const sub = new SpiceImport(() => {}).parse(".SUBCKT T A B\nE1 B 0 A 0 {1/4}\n.ENDS\n");
+        expect(sub).not.toBeNull();
+        expect(CustomLogicModel.unescape(sub!.dump)).toBe("0 2 0.25*(a-b)");
+    });
+    it("converts SIN", () => {
+        expect(convert("V1 A 0 SIN(2 5 1k)")).toBe("0 1 1000 -5 -2 0 0.5");
+    });
+});
+
+describe("capacitors", () => {
+    it("start at IC= on reset, and one of 0 is left out", () => {
+        // IC= and the value can be parameter expressions
+        const sub = new SpiceImport(() => {}).parse(
+            ".SUBCKT T A B PARAMS: SS=1\nC1 A 0 26.8p IC={SS*1.198}\nC2 B 0 {100u*(1-SS)}\nC3 A B 1n TC=0,0\n.ENDS\n");
+        expect(sub).not.toBeNull();
+        const lines = sub!.elmDump.split("\r").filter(l => l.length > 0);
+        expect(lines.length).toBe(2);
+        expect(sub!.dump.split(" ").map(s => CustomLogicModel.unescape(s))).toEqual(["2 2.68e-11 1.198 1.198", "2 1e-9 0 0"]);
+    });
+});
+
 describe(".model lines", () => {
     it("imports diode, BJT and MOSFET models", () => {
         const log: string[] = [];
