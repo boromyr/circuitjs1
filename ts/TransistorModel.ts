@@ -230,7 +230,7 @@ export class TransistorModel implements Editable, Comparable<TransistorModel> {
         for (const [, tm] of TransistorModel.modelMap) {
             if (tm.internal)
                 continue;
-            if (tm !== keep && hidden.has(tm.name))
+            if (tm !== keep && !tm.builtIn && hidden.has(tm.name))
                 continue;
             if (!vector.includes(tm))
                 vector.push(tm);

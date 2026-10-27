@@ -8,6 +8,7 @@ import { MosfetModel } from "./MosfetModel";
 import { CustomLogicModel } from "./CustomLogicModel";
 import { ExprParser, ExprState } from "./Expr";
 import { SpiceNetlist } from "./SpiceNetlist";
+import { SubcircuitModel } from "./SubcircuitModel";
 
 export const TL072 = `* TL072 OPERATIONAL AMPLIFIER "MACROMODEL" SUBCIRCUIT
 * CREATED USING PARTS RELEASE 4.01 ON 06/16/89 AT 13:08
@@ -136,6 +137,27 @@ describe("waveform sources", () => {
     });
     it("converts SIN", () => {
         expect(convert("V1 A 0 SIN(2 5 1k)")).toBe("0 1 1000 -5 -2 0 0.5");
+    });
+    it("is not confused by names that contain the keyword", () => {
+        expect(convert("Vsin A 0 SIN(2 5 1k)")).toBe("0 1 1000 -5 -2 0 0.5");
+        expect(convert("V1 A 0 DC SIN(2 5 1k)")).toBe("0 1 1000 -5 -2 0 0.5");
+        expect(convert("Vpulse A 0 PULSE(1 3 0 0 0 1u 4u)")).toBe("4 5 250000 -2 -1 0 0.25");
+        const log: string[] = [];
+        const sub = new SpiceImport(s => log.push(s)).parse(".SUBCKT T SINOUT B\nR1 SINOUT B 1k\nV1 SINOUT 0 SIN(2 5 1k)\n.ENDS\n");
+        expect(sub, log.join("\n")).not.toBeNull();
+    });
+});
+
+describe("parameters written with spaces around =", () => {
+    it("are not pins or the name of the subcircuit", () => {
+        const text = ".SUBCKT TOP A B\nX1 A B DIV R = 2k\n.ENDS\n" +
+            ".SUBCKT DIV IN OUT R = 1k\nR1 IN OUT {R}\n.ENDS\n";
+        const log: string[] = [];
+        const sub = new SpiceImport(s => log.push(s)).parse(text);
+        expect(sub, log.join("\n")).not.toBeNull();
+        expect(sub!.extList.map(e => e.name)).toEqual(["A", "B"]);
+        expect(CustomLogicModel.unescape(sub!.dump)).toContain("2000");
+        expect(SpiceImport.analyzeHeader(".SUBCKT DIV IN OUT R = 1k\n.ENDS\n").nodes).toEqual(["in", "out"]);
     });
 });
 
@@ -282,5 +304,42 @@ describe("guessSymbol for diode and JFET types", () => {
     it("recognizes JFETs", () => {
         expect(SpiceImport.guessSymbol(header("J201 N-channel JFET", "d g s"))).toBe("njfet");
         expect(SpiceImport.guessSymbol(header("P-channel JFET", "d g s"))).toBe("pjfet");
+    });
+});
+
+describe("model lists", () => {
+    it("keep rectifiers with a 50 V breakdown among the diodes", () => {
+        UserModelLibrary.parseModelLine(".model 1N4001 D(IS=29.5n RS=73.5m N=1.96 BV=50 IBV=10u)", []);
+        expect(DiodeModel.getModelWithName("1N4001").getKind()).toBe(DiodeModel.KIND_DIODE);
+        UserModelLibrary.parseModelLine(".model DZ5V1 D(IS=1n BV=5.1)", []);
+        expect(DiodeModel.getModelWithName("DZ5V1").getKind()).toBe(DiodeModel.KIND_ZENER);
+    });
+    it("hide only the models of subcircuits imported from SPICE, never built-in ones", () => {
+        const sub = (name: string, mo: string, spice: string | null) => {
+            const m = new SubcircuitModel();
+            m.name = name;
+            m.spiceText = spice;
+            const child = { tagName: "d", getAttribute: (a: string) => a === "mo" ? mo : null };
+            (m as any).elmDoc = { documentElement: { children: [child] } };
+            SubcircuitModel.globalModelMap.set(name, m);
+        };
+        DiodeModel.getModelWithName("audit-imported-d").description = "SPICE";
+        DiodeModel.getModelWithName("audit-drawn-d");
+        sub("audit-drawn", "audit-drawn-d", null);
+        sub("audit-imported", "audit-imported-d", ".subckt x a b\n.ends\n");
+        sub("audit-imported2", "default", ".subckt y a b\n.ends\n");
+        const names = DiodeModel.getModelList(DiodeModel.KIND_DIODE).map(m => m.name);
+        expect(names).toContain("default");
+        expect(names).toContain("audit-drawn-d");
+        expect(names).not.toContain("audit-imported-d");
+        for (const n of ["audit-drawn", "audit-imported", "audit-imported2"])
+            SubcircuitModel.globalModelMap.delete(n);
+    });
+    it("bring back the J201 of circuits saved when it was built in", () => {
+        const j = MosfetModel.getModelWithNameOrCopy("J201", null, true);
+        expect(j.name).toBe("J201");
+        expect(j.isJfet()).toBe(true);
+        expect(j.threshold).toBeCloseTo(-.5961, 6);
+        expect(j.builtIn).toBe(false);
     });
 });

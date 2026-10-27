@@ -133,15 +133,8 @@ export class SpiceImport {
             if (top != null && name !== top)
                 continue;
             header += name + " ";
-            while (st.hasMoreTokens()) {
-                const n = st.nextToken();
-                if (n === "(" || n === ")")
-                    continue;
-                // parameters, eg PARAMS: or x=1
-                if (n.indexOf('=') >= 0 || n.endsWith(":"))
-                    break;
+            for (const n of SpiceImport.subcktPins(st))
                 h.nodes.push(n);
-            }
             h.found = true;
             break;
         }
@@ -353,13 +346,7 @@ export class SpiceImport {
                     }
                     subcircuitName = st.nextToken();
                     subcircuitDisplayName = st.tokenPreserveCase;
-                    while (st.hasMoreTokens()) {
-                        const n = st.nextToken();
-                        if (n === "(" || n === ")")
-                            continue;
-                        // parameters (PARAMS: x=1) are not pins, as in analyzeHeader()
-                        if (n.indexOf('=') >= 0 || n.endsWith(":"))
-                            break;
+                    for (const n of SpiceImport.subcktPins(st)) {
                         this.nodes.push(n);
                         extList.push(new ExtListEntry(n, this.nodes.length));
                     }
@@ -634,7 +621,11 @@ export class SpiceImport {
                     if (wave != null) {
                         // PULSE(v1 v2 td tr tf pw per) and SIN(vo va freq ...): the parentheses are
                         // optional.  Delay, rise and fall times, damping are not in the dump format.
-                        const args = line.substring(line.toLowerCase().indexOf(wave[1]) + wave[1].length)
+                        // the arguments follow the keyword after the name and the two nodes (which
+                        // may contain "sin" or "pulse" too, as in Vsin or sinout)
+                        const afterNodes = line.toLowerCase().replace(/^\s*[^\s()]+[\s()]+[^\s()]+[\s()]+[^\s()]+/, "");
+                        const kw = new RegExp("\\b" + wave[1] + "\\b").exec(afterNodes)!;
+                        const args = afterNodes.substring(kw.index + wave[1].length)
                             .replace(/[()]/g, " ").trim().split(/\s+/).filter(s => s.length > 0 && !s.includes("="));
                         const num = (i: number, def: number) => (i < args.length) ? parseNumber(args[i]) : def;
                         if (wave[1] === "sin") {
@@ -751,6 +742,25 @@ export class SpiceImport {
             this.elmDump += " " + this.findNode(inp);
         this.elmDump += " " + this.findNode(n1) + " " + this.findNode(n2) + "\r";
         this.ldump = "0 " + inputs.length + " " + expr;
+    }
+
+    // the pins of a .subckt line, from the tokenizer after the name: the tokens before the
+    // parameters (PARAMS:, x=1, or x = 1 with spaces, whose name is not a pin either)
+    private static subcktPins(st: BetterStringTokenizer): string[] {
+        const toks: string[] = [];
+        while (st.hasMoreTokens()) {
+            const n = st.nextToken();
+            if (n !== "(" && n !== ")")
+                toks.push(n);
+        }
+        for (let i = 0; i < toks.length; i++) {
+            const eq = toks[i].indexOf('=');
+            if (toks[i].endsWith(":") || eq > 0)
+                return toks.slice(0, i);
+            if (eq === 0)
+                return toks.slice(0, Math.max(0, i - 1));
+        }
+        return toks;
     }
 
     // a number with an optional suffix, or a constant expression in braces: {1/12}

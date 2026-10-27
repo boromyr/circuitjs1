@@ -253,9 +253,12 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
             return DiodeModel.KIND_SCHOTTKY;
         if (/(^|[^a-z])led([^a-z]|$)/.test(n))
             return DiodeModel.KIND_LED;
+        // rectifiers and switching diodes, whose breakdown voltage (often 50 V) is not a Zener's
+        if (/^1n400\d|^1n54\d\d|^1n914|^1n4148|^1n4448|^bas\d|^bav\d|^by[vw]?\d|^mur\d|^uf\d|^rl\d|^fr\d/.test(n))
+            return DiodeModel.KIND_DIODE;
         if (n === "default-zener" || this.description === "Zener" ||
                 /zener|^bzx|^bzv|^bzt|^mmsz|^1n4[67]\d\d|^1n5[23]\d\d/.test(n) ||
-                (this.breakdownVoltage > 0 && (this.oldStyle || (!this.builtIn && this.breakdownVoltage <= 50))))
+                (this.breakdownVoltage > 0 && (this.oldStyle || (!this.builtIn && this.breakdownVoltage < 50))))
             return DiodeModel.KIND_ZENER;
         return DiodeModel.KIND_DIODE;
     }
@@ -268,7 +271,7 @@ export class DiodeModel implements Editable, Comparable<DiodeModel> {
         for (const [, dm] of DiodeModel.modelMap) {
             if (dm.internal && dm !== keep)
                 continue;
-            if (dm !== keep && hidden.has(dm.name))
+            if (dm !== keep && !dm.builtIn && hidden.has(dm.name))
                 continue;
             if (dm !== keep && dm.getKind() !== kind)
                 continue;

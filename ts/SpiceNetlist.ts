@@ -84,13 +84,23 @@ export class SpiceNetlist {
 
     // name of the subcircuit an X line uses: the last token before the parameters
     private static getXSubcktName(tok: string[]): string {
-        let n = tok.length;
-        for (let i = 1; i < tok.length; i++)
-            if (tok[i] === "params:" || tok[i].indexOf('=') >= 0) {
-                n = i;
-                break;
-            }
-        return tok[n - 1];
+        return tok[SpiceNetlist.paramStart(tok, 1) - 1];
+    }
+
+    // index of the first token of the parameters (params:, x=1, or x = 1 with spaces), or the
+    // number of tokens if there are none
+    private static paramStart(tok: string[], from: number): number {
+        for (let i = from; i < tok.length; i++) {
+            if (tok[i] === "params:")
+                return i;
+            const eq = tok[i].indexOf('=');
+            if (eq > 0)
+                return i;
+            // "= 1k" or "=": the name of the parameter is the token before
+            if (eq === 0)
+                return Math.max(from, i - 1);
+        }
+        return tok.length;
     }
 
     // expand the top subcircuit in the lines (as returned by SpiceImport.getLines()).  The
@@ -139,12 +149,7 @@ export class SpiceNetlist {
                 cur = new SubcktDef();
                 cur.line = t;
                 cur.name = tok[1];
-                let i = 2;
-                for (; i < tok.length; i++) {
-                    if (tok[i] === "params:" || tok[i].indexOf('=') >= 0)
-                        break;
-                    cur.pins.push(tok[i]);
-                }
+                cur.pins = tok.slice(2, SpiceNetlist.paramStart(tok, 2));
                 this.readParams(SpiceNetlist.afterPins(lt), cur.params, new Map());
                 this.subckts.set(cur.name, cur);
                 continue;

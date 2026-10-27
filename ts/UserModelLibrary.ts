@@ -93,13 +93,14 @@ export class UserModelLibrary {
         UserModelLibrary.sequenceNumber++;
     }
 
-    // device models made for the inside of subcircuits (their diodes, transistors and JFETs
-    // come with the model), unless they were imported on their own: not worth listing among
-    // the models of a diode or transistor
+    // device models made for the inside of subcircuits imported from SPICE (their diodes,
+    // transistors and JFETs come with the model), unless they were imported on their own: not
+    // worth listing among the models of a diode or transistor.  Subcircuits drawn by hand use
+    // the models of the lists, which must stay there; the model lists also keep built-in ones.
     static getSubcircuitInternalModelNames(): Set<string> {
         const names = new Set<string>();
         const scan = (m: SubcircuitModel) => {
-            if (m.elmDoc == null)
+            if (m.elmDoc == null || m.spiceText == null)
                 return;
             for (const child of Array.from(m.elmDoc.documentElement.children)) {
                 const mo = child.getAttribute("mo");

@@ -701,11 +701,12 @@ export class CommandManager {
         (window as any).newWindow?.();
     }
 
-    // these resolve to true once the circuit is saved, false if there was no save (cancelled)
+    // these resolve to true once the circuit is saved, false if there was no save (cancelled,
+    // or the file couldn't be written: preload.js has shown the error)
     static async electronSaveAs(dump: string): Promise<boolean> {
         const file = await (window as any).showSaveDialog?.();
         if (file == null || file.canceled) return false;
-        (window as any).saveFile(file, dump);
+        if ((window as any).saveFile(file, dump) === false) return false;
         CommandManager.electronSaveAsCallback(file.filePath.toString());
         return true;
     }
@@ -719,7 +720,7 @@ export class CommandManager {
     }
 
     static electronSave(dump: string): boolean {
-        (window as any).saveFile?.(null, dump);
+        if ((window as any).saveFile?.(null, dump) === false) return false;
         CommandManager.electronSaveCallback();
         return true;
     }

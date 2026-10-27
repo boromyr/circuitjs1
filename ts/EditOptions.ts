@@ -127,11 +127,6 @@ export class EditOptions implements Editable {
             ei.checkbox = new Checkbox("Show Operating Region", CircuitElm.showOperatingRegion);
             return ei;
         }
-        if (n === 18) {
-            const ei = new EditInfo("", 0, -1, -1);
-            ei.checkbox = new Checkbox("Show Operating Region", CircuitElm.showOperatingRegion);
-            return ei;
-        }
 
         // add new options here (before the adjustTimeStep conditional below)
 

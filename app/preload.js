@@ -10,16 +10,20 @@ window.fileExists = function (path) { try { return fs.statSync(path).isFile(); }
 
 window.showSaveDialog = function (defaultPath) { return ipcRenderer.invoke('show-save-dialog', defaultPath); }
 
+// returns true if the file was written; false (after showing the error) if it wasn't, so a
+// window closed after saving doesn't lose the changes
 window.saveFile = function (file, data, encoding) {
-  var path;
-  if (!file)
-    path = lastSavedFilePath;
-  else {
-    path = file.filePath.toString();
-    lastSavedFilePath = path;
-  }
+  var path = file ? file.filePath.toString() : lastSavedFilePath;
   // synchronous: the window may be closed right after saving
-  try { fs.writeFileSync(path, data, { encoding: encoding || 'utf8' }); } catch (err) { window.alert(err); }
+  try {
+    fs.writeFileSync(path, data, { encoding: encoding || 'utf8' });
+  } catch (err) {
+    window.alert(err);
+    return false;
+  }
+  if (file)
+    lastSavedFilePath = path;
+  return true;
 }
 
 function baseName(fileName) {

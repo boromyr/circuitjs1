@@ -95,7 +95,7 @@ export class SpiceModelDatabase {
             return { devices: 0, subcircuits: 0 };
         }
         const lines = (db.deviceModels ?? []).map(d => d.line).filter(l => typeof l === "string");
-        const devices = UserModelLibrary.importModels(lines, []);
+        const devices = UserModelLibrary.importModels(lines, log);
         let subcircuits = 0;
         for (const s of db.subcircuits ?? []) {
             try {

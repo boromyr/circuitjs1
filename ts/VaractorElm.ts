@@ -64,6 +64,8 @@ export class VaractorElm extends DiodeElm {
     }
 
     stepFinished(): void {
+        // (the diode keeps the state of the junction capacitance of its model, if it has one)
+        super.stepFinished();
         this.capvoltdiff = this.nodes[0].v - this.nodes[1].v;
     }
 

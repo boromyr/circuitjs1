@@ -119,7 +119,7 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
 
     static getModelWithNameOrCopy(name: string, oldmodel: MosfetModel | null, jfet: boolean): MosfetModel {
         MosfetModel.createModelMap();
-        const lm = MosfetModel.modelMap.get(name);
+        const lm = MosfetModel.modelMap.get(name) ?? MosfetModel.getRemovedBuiltInModel(name);
         if (lm != null)
             return lm;
         if (oldmodel == null) {
@@ -157,6 +157,24 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
         const jfetDefault = new MosfetModel("default-jfet", -4, .00125).setJfet();
         jfetDefault.showBulk = jfetDefault.bodyDiode = false;
         MosfetModel.addDefaultModel("default-jfet", jfetDefault);
+    }
+
+    // J201 was a built-in model for a while, so circuits saved then don't carry its definition.
+    // It is made again (as an ordinary model, so a .model J201 can still be imported under
+    // that name) when such a circuit asks for it.
+    private static getRemovedBuiltInModel(name: string): MosfetModel | null {
+        if (name !== "J201")
+            return null;
+        // from the Fairchild SPICE model: Beta=1.304m Lambda=2.4m Vto=-.5961 Cgd=4.48p Cgs=4.442p
+        // (SPICE uses Ids = BETA*(Vgs-VTO)^2, this simulator Ids = beta/2*(Vgs-Vt)^2, so beta = 2*BETA)
+        const j201 = new MosfetModel(name, -.5961, 2 * 1.304e-3).setJfet();
+        j201.lambda = 2.4e-3;
+        j201.capGS = 4.442e-12;
+        j201.capGD = 4.48e-12;
+        j201.showBulk = j201.bodyDiode = j201.showBodyDiodeSymbol = false;
+        j201.name = name;
+        MosfetModel.modelMap.set(name, j201);
+        return j201;
     }
 
     static addDefaultModel(name: string, dm: MosfetModel): void {
@@ -229,7 +247,7 @@ export class MosfetModel implements Editable, Comparable<MosfetModel> {
             if (mm.internal || mm.isJfet() !== jfet)
                 continue;
             // the generic model of the old JFET format only comes from imported subcircuits and old circuits
-            if (mm !== keep && (hidden.has(mm.name) || (jfet && mm.name.startsWith("old-jfet"))))
+            if (mm !== keep && ((!mm.builtIn && hidden.has(mm.name)) || (jfet && mm.name.startsWith("old-jfet"))))
                 continue;
             if (!vector.includes(mm))
                 vector.push(mm);
