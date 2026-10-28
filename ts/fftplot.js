@@ -118,7 +118,7 @@
 			axis: { dbv: 'Level (dBV)', dbc: 'Level (dBc)', vrms: 'Amplitude (V RMS)', vpk: 'Amplitude (V peak)' },
 			m: {
 				title: 'Measurements', fund: 'Fundamental', level: 'Level', dc: 'DC', rms: 'RMS (total)', vpp: 'Peak-peak',
-				thd: 'THD', thdn: 'THD+N',
+				thd: 'THD', thdn: 'THD+N', dThdTip: 'THD+N minus THD: how much the noise adds to the distortion',
 				harmonics: 'Harmonics', h: 'H', freq: 'Freq.', noFund: 'No tone found'
 			},
 			info: 'N = {N}, fs = {fs}, Δf = {df}, T = {T}, {w}{avg}', avgOf: ', average {a}/{b}',
@@ -149,7 +149,7 @@
 			axis: { dbv: 'Livello (dBV)', dbc: 'Livello (dBc)', vrms: 'Ampiezza (V RMS)', vpk: 'Ampiezza (V picco)' },
 			m: {
 				title: 'Misure', fund: 'Fondamentale', level: 'Livello', dc: 'DC', rms: 'RMS (totale)', vpp: 'Picco-picco',
-				thd: 'THD', thdn: 'THD+N',
+				thd: 'THD', thdn: 'THD+N', dThdTip: 'THD+N meno THD: quanto il rumore aggiunge alla distorsione',
 				harmonics: 'Armoniche', h: 'H', freq: 'Freq.', noFund: 'Nessun tono trovato'
 			},
 			info: 'N = {N}, fs = {fs}, Δf = {df}, T = {T}, {w}{avg}', avgOf: ', media {a}/{b}',
@@ -242,6 +242,11 @@
 		return trim(t * 1e6) + ' µs';
 	}
 	function fmtDb(v) { return isFinite(v) ? v.toFixed(2) + ' dB' : '—'; }
+	// a difference in dB, with the digits it needs when it is tiny (the noise far below the harmonics)
+	function fmtDeltaDb(d) {
+		if (!isFinite(d)) return '—';
+		return (d >= 0 ? '+' : '') + (Math.abs(d) >= 0.01 || d === 0 ? d.toFixed(3) : d.toExponential(1)) + ' dB';
+	}
 	function db20(x) { return x > 0 ? 20 * Math.log10(x) : -Infinity; }
 	function db10(x) { return x > 0 ? 10 * Math.log10(x) : -Infinity; }
 
@@ -512,6 +517,9 @@
 		for (k = 0; k < nb; k++) if (!used[k]) pn += s.pw[k];
 		m.thd = Math.sqrt(ph / p1);
 		m.thdn = Math.sqrt((ph + pn) / p1);
+		// THD+N - THD in dB, from the noise itself: subtracting the two loses it when it is far
+		// below the harmonics
+		m.dThd = ph > 0 ? 10 * Math.log1p(pn / ph) / Math.LN10 : Infinity;
 		return m;
 	}
 
@@ -1112,7 +1120,8 @@
 		if (meas.fund) {
 			h += '<table>';
 			h += row(M.thd, fmtPct(meas.thd) + '<br><span style="color:#9a9a9a">' + fmtDb(db20(meas.thd)) + '</span>');
-			h += row(M.thdn, fmtPct(meas.thdn) + '<br><span style="color:#9a9a9a">' + fmtDb(db20(meas.thdn)) + '</span>');
+			h += row(M.thdn, fmtPct(meas.thdn) + '<br><span style="color:#9a9a9a">' + fmtDb(db20(meas.thdn)) + '</span>' +
+				'<br><span style="color:#9a9a9a" title="' + M.dThdTip + '">Δ ' + fmtDeltaDb(meas.dThd) + '</span>');
 			h += '</table>';
 			if (meas.harmonics.length) {
 				h += '<h3>' + M.harmonics + '</h3><table class="harm"><tr class="hd"><td>' + M.h + '</td><td>' + M.freq +
