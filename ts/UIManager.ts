@@ -1751,6 +1751,12 @@ export class UIManager {
         }
 
         if (this.dialogIsShowing()) {
+            // Ctrl+R resets with the property editor open too, and never reloads the page
+            if (code === KEY_R && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+                if (!this.modalDialogIsShowing())
+                    this.resetAction();
+                e.preventDefault();
+            }
             if (CirSim.scrollValuePopup != null && CirSim.scrollValuePopup.isShowing()) {
                 if (code === KEY_ESCAPE || code === KEY_SPACE)
                     CirSim.scrollValuePopup.close(false);
@@ -2026,7 +2032,11 @@ export class UIManager {
     }
 
     private handleReadonlyKeyDown(e: KeyboardEvent, code: number): void {
-        // readonly mode — still allow zoom keys via keypress, nothing here for keydown
+        // readonly mode — still allow zoom keys via keypress; Ctrl+R resets (instead of reloading the page)
+        if (code === KEY_R && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
+            this.resetAction();
+            e.preventDefault();
+        }
     }
 
     // ---- Widget management ----

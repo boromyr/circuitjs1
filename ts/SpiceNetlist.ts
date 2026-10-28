@@ -31,6 +31,8 @@ class SubcktDef {
     // the .subckt line as written, to keep the case of the name
     line: string = "";
     pins: string[] = [];
+    // default values as written: they can use other parameters, so they are evaluated for
+    // each instance (see instanceParams)
     params = new Map<string, string>();
     body: string[] = [];
     // .model lines inside the subcircuit, by model name
@@ -119,10 +121,7 @@ export class SpiceNetlist {
         const pinMap = new Map<string, string>();
         for (const p of def.pins)
             pinMap.set(p, p);
-        const params = new Map(sn.globalParams);
-        for (const [k, v] of def.params)
-            params.set(k, v);
-        if (!sn.expand(def, "", pinMap, params, 0))
+        if (!sn.expand(def, "", pinMap, sn.instanceParams(def, new Map()), 0))
             return null;
         sn.out.push(".ends");
         for (const [name, line] of sn.globalModels)
@@ -150,7 +149,7 @@ export class SpiceNetlist {
                 cur.line = t;
                 cur.name = tok[1];
                 cur.pins = tok.slice(2, SpiceNetlist.paramStart(tok, 2));
-                this.readParams(SpiceNetlist.afterPins(lt), cur.params, new Map());
+                SpiceNetlist.readRawParams(SpiceNetlist.afterPins(lt), cur.params);
                 this.subckts.set(cur.name, cur);
                 continue;
             }
@@ -163,8 +162,10 @@ export class SpiceNetlist {
                 continue;
             }
             if (tok[0] === ".param") {
-                const p = (cur != null) ? cur.params : this.globalParams;
-                this.readParams(lt.substring(6), p, p);
+                if (cur != null)
+                    SpiceNetlist.readRawParams(lt.substring(6), cur.params);
+                else
+                    this.readParams(lt.substring(6), this.globalParams, this.globalParams);
                 continue;
             }
             if (cur != null)
@@ -182,12 +183,30 @@ export class SpiceNetlist {
         return (m == null) ? "" : lt.substring(m.index);
     }
 
+    private static readonly PARAM_RE = /([a-z_][a-z0-9_]*)\s*=\s*(\{[^{}]*\}|[^\s]+)/g;
+
     // read x=1 y={2*x} into params, evaluating the values with the parameters in scope
     private readParams(s: string, params: Map<string, string>, scope: Map<string, string>): void {
-        const re = /([a-z_][a-z0-9_]*)\s*=\s*(\{[^{}]*\}|[^\s]+)/g;
-        let m: RegExpExecArray | null;
-        while ((m = re.exec(s)) != null)
+        for (const m of s.matchAll(SpiceNetlist.PARAM_RE))
             params.set(m[1], this.paramValue(m[2], scope));
+    }
+
+    // read x=1 y={2*x} into params, with the values as written
+    private static readRawParams(s: string, params: Map<string, string>): void {
+        for (const m of s.matchAll(SpiceNetlist.PARAM_RE))
+            params.set(m[1], m[2]);
+    }
+
+    // parameters of an instance of def: the global ones, the values the instance gives (already
+    // evaluated), then the defaults of the others, in order, so they can use the ones before
+    private instanceParams(def: SubcktDef, given: Map<string, string>): Map<string, string> {
+        const params = new Map(this.globalParams);
+        for (const [k, v] of given)
+            params.set(k, v);
+        for (const [k, v] of def.params)
+            if (!given.has(k))
+                params.set(k, this.paramValue(v, params));
+        return params;
     }
 
     // a parameter value as a number if possible, otherwise as an expression in parentheses
@@ -209,7 +228,13 @@ export class SpiceNetlist {
     // value of an expression with only numbers in it, or null
     static evalConst(s: string): number | null {
         const inputs: string[] = [];
-        const e = SpiceNetlist.translateExpr(s, inputs);
+        let e: string;
+        try {
+            e = SpiceNetlist.translateExpr(s, inputs);
+        } catch (err) {
+            // eg a name that is not a parameter
+            return null;
+        }
         if (inputs.length > 0)
             return null;
         const parser = new ExprParser(e);
@@ -312,12 +337,10 @@ export class SpiceNetlist {
                 const pm = new Map<string, string>();
                 for (let i = 0; i !== nodes.length; i++)
                     pm.set(sub.pins[i], mapNode(nodes[i]));
-                // parameters of the subcircuit: its defaults, then the ones given here
-                const sp = new Map(this.globalParams);
-                for (const [k, v] of sub.params)
-                    sp.set(k, v);
-                this.readParams(SpiceNetlist.afterPins(line), sp, params);
-                if (!this.expand(sub, prefix + name + ".", pm, sp, depth + 1))
+                // parameters of the subcircuit: the ones given here (evaluated with ours), and its defaults
+                const given = new Map<string, string>();
+                this.readParams(SpiceNetlist.afterPins(line), given, params);
+                if (!this.expand(sub, prefix + name + ".", pm, this.instanceParams(sub, given), depth + 1))
                     return false;
                 continue;
             }
