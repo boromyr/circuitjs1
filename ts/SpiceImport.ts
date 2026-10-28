@@ -317,7 +317,13 @@ export class SpiceImport {
     // convert the subcircuit in a SPICE text; null (with the reason logged) if it can't be done
     parse(text: string): SpiceSubcircuit | null {
         // with the subcircuits it uses expanded into it
-        const lines = SpiceNetlist.flatten(SpiceImport.getLines(text), this.log);
+        let lines: string[] | null;
+        try {
+            lines = SpiceNetlist.flatten(SpiceImport.getLines(text), this.log);
+        } catch (e) {
+            this.log((e instanceof Error) ? e.message : String(e));
+            return null;
+        }
         if (lines == null)
             return null;
         const transistorModels = new Map<string, TransistorModelImport>();
@@ -503,13 +509,12 @@ export class SpiceImport {
                     // a capacitor of 0 (a parameter expression can give one) is an open circuit
                     if (cap === 0)
                         continue;
-                    // IC=x is the voltage on reset
-                    let ic = 0;
-                    while (st.hasMoreTokens()) {
-                        const m = /^ic=(.+)$/.exec(st.nextToken());
-                        if (m != null)
-                            ic = parseNumber(m[1]);
-                    }
+                    // IC=x (or IC = x) is the voltage on reset
+                    const opts: string[] = [];
+                    while (st.hasMoreTokens())
+                        opts.push(st.nextToken());
+                    const icm = /(?:^|\s)ic\s*=\s*(\S+)/.exec(opts.join(" "));
+                    const ic = (icm == null) ? 0 : parseNumber(icm[1]);
                     this.elmDump += "CapacitorElm " + this.findNode(n1) + " " + this.findNode(n2) + "\r";
                     // add FLAG_BACK_EULER because that is probably the most appropriate setting for spice models
                     this.ldump = "2 " + cap + " " + ic + " " + ic;

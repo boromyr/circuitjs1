@@ -398,6 +398,8 @@ export function registerElements(): void {
     CirSim.theApp.register("OpAmpElm", new OpAmpElm(0, 0));
     CirSim.theApp.register("OpAmpRealElm", new OpAmpRealElm(0, 0));
     CirSim.theApp.register("OpAmpRealSwapElm", new OpAmpRealSwapElm(0, 0));
+    // the tag it had in files saved before it was saved as an OpAmpRealElm
+    CirSim.xmlDumpTypeMap.set("OpAmpRealSwap", "OpAmpRealElm");
     CirSim.theApp.register("OpAmpSwapElm", new OpAmpSwapElm(0, 0));
     CirSim.theApp.register("OptocouplerElm", new OptocouplerElm(0, 0));
     CirSim.theApp.register("OrGateElm", new OrGateElm(0, 0));

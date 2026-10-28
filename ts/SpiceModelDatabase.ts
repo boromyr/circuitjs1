@@ -148,7 +148,8 @@ export class SpiceModelDatabase {
         m.setShowLabel(s.showLabel === true);
 
         // replace a model with the same name, and put it in its scope as the edit dialog does
-        SubcircuitModel.localModelMap.get(s.name)?.setSaved(false);
+        // (the saved copy goes too: saved models are found by name)
+        m.setSaved(false);
         SubcircuitModel.localModelMap.delete(s.name);
         SubcircuitModel.globalModelMap.delete(s.name);
         const scope = SpiceModelDatabase.SCOPES.indexOf(s.scope);
