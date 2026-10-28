@@ -64,6 +64,11 @@
 	var avg = null;         // {key, sum:[], n, list:[]} power average
 	var lastSampleT = null;
 	var winCache = {};
+	// steady state of the current acquisition (see steady()): {start, prevCount, prevT1, at, gaveUp};
+	// at is the time the signal was found settled, so the window is free of the start-up
+	// transient once its first sample is later
+	var settle = null;
+	var settling = false;   // fast acquisition still waiting for that
 
 	var settings = {
 		output: '',
@@ -97,7 +102,7 @@
 			markers: 'Markers', cursors: 'Cursors', cursorsTip: 'Two vertical cursors: drag them (or click in the plot) to read two points and their difference',
 			logV: 'Log V', logVTip: 'Logarithmic voltage axis, so that small components are visible too', fast: 'Fast acquisition',
 			speed: 'Speed', speedTip: 'Simulation Speed (the same as the slider of the simulator)',
-			fastTip: 'While acquiring, run the simulation as fast as the computer allows, then back to the set speed', dbRange: 'dB', custom: 'Custom', auto: 'Auto', none: '(none)',
+			fastTip: 'While acquiring, and until the signal is in steady state, run the simulation as fast as the computer allows, then back to the set speed', dbRange: 'dB', custom: 'Custom', auto: 'Auto', none: '(none)',
 			hold: 'Hold trace', holdTip: 'Freeze the current spectrum to compare it with later changes',
 			clear: 'Clear held', clearTip: 'Remove the held traces', csv: 'Copy CSV',
 			csvTip: 'Copy the spectrum (frequency, V RMS, dBV) to the clipboard',
@@ -107,6 +112,7 @@
 			noOutput: 'No signal: add a labeled node, an Output or a voltmeter.',
 			needOut: 'Needs a labeled node, an Output or a voltmeter as the signal',
 			acquiring: 'Acquiring: {n}%', paused: 'Start the simulation to acquire the samples',
+			settling: 'Waiting for steady state...',
 			wins: { rect: 'Rectangular', hann: 'Hann', hamming: 'Hamming', bh: 'Blackman-Harris 7', bh4: 'Blackman-Harris 4', flattop: 'Flat top' },
 			scales: { dbv: 'dBV (RMS)', dbc: 'dBc (rel. fundamental)', vrms: 'V RMS', vpk: 'V peak' },
 			axis: { dbv: 'Level (dBV)', dbc: 'Level (dBc)', vrms: 'Amplitude (V RMS)', vpk: 'Amplitude (V peak)' },
@@ -127,7 +133,7 @@
 			markers: 'Marcatori', cursors: 'Cursori', cursorsTip: 'Due cursori verticali: trascinali (o fai clic nel grafico) per leggere due punti e la loro differenza',
 			logV: 'Log V', logVTip: 'Asse delle tensioni logaritmico, per vedere anche le componenti piccole', fast: 'Acquisizione veloce',
 			speed: 'Velocità', speedTip: 'Velocità di simulazione (la stessa della barra del simulatore)',
-			fastTip: 'Durante l\'acquisizione la simulazione va alla massima velocità possibile, poi torna alla velocità impostata', dbRange: 'dB', custom: 'Personalizzato', auto: 'Auto', none: '(nessuno)',
+			fastTip: 'Durante l\'acquisizione, e finché il segnale non è a regime, la simulazione va alla massima velocità possibile, poi torna alla velocità impostata', dbRange: 'dB', custom: 'Personalizzato', auto: 'Auto', none: '(nessuno)',
 			hold: 'Fissa curva', holdTip: 'Congela lo spettro attuale per confrontarlo con le modifiche successive',
 			clear: 'Cancella fissate', clearTip: 'Rimuove le curve fissate', csv: 'Copia CSV',
 			csvTip: 'Copia lo spettro (frequenza, V RMS, dBV) negli appunti',
@@ -137,6 +143,7 @@
 			noOutput: 'Nessun segnale: aggiungi un\'etichetta (Labeled Node), un Output o un voltmetro.',
 			needOut: 'Serve un nodo etichettato, un Output o un voltmetro come segnale',
 			acquiring: 'Acquisizione: {n}%', paused: 'Avvia la simulazione per acquisire i campioni',
+			settling: 'In attesa del regime...',
 			wins: { rect: 'Rettangolare', hann: 'Hann', hamming: 'Hamming', bh: 'Blackman-Harris 7', bh4: 'Blackman-Harris 4', flattop: 'Flat top' },
 			scales: { dbv: 'dBV (RMS)', dbc: 'dBc (rel. fondamentale)', vrms: 'V RMS', vpk: 'V picco' },
 			axis: { dbv: 'Livello (dBV)', dbc: 'Livello (dBc)', vrms: 'Ampiezza (V RMS)', vpk: 'Ampiezza (V picco)' },
@@ -270,6 +277,45 @@
 			out[i] = v[j] + (v[j + 1] - v[j]) * a;
 		}
 		return out;
+	}
+
+	// value at time x by linear interpolation, with t[i - 1] < x <= t[i]
+	function interpAt(t, v, i, x) {
+		if (i <= 0) return v[0];
+		if (i >= t.length) return v[t.length - 1];
+		var d = t[i] - t[i - 1];
+		return d > 0 ? v[i - 1] + (v[i] - v[i - 1]) * (x - t[i - 1]) / d : v[i];
+	}
+
+	// mean and RMS of the samples between times a and b (trapezoids, the ends interpolated)
+	function spanStats(t, v, a, b) {
+		var lo = 0, hi = t.length;
+		while (lo < hi) { var m = (lo + hi) >> 1; if (t[m] < a) lo = m + 1; else hi = m; }
+		var i = lo, pt = a, pv = interpAt(t, v, i, a), s1 = 0, s2 = 0;
+		for (; i < t.length && t[i] <= b; i++) {
+			var h = t[i] - pt;
+			s1 += h * (pv + v[i]) / 2; s2 += h * (pv * pv + v[i] * v[i]) / 2;
+			pt = t[i]; pv = v[i];
+		}
+		if (pt < b) {
+			var bv = interpAt(t, v, i, b), hb = b - pt;
+			s1 += hb * (pv + bv) / 2; s2 += hb * (pv * pv + bv * bv) / 2;
+		}
+		return { mean: s1 / (b - a), rms: Math.sqrt(Math.max(s2 / (b - a), 0)) };
+	}
+
+	// true when the signal repeats with the period of the source: the mean and the RMS of the last
+	// period are those of the one before.  Until then a start-up transient (capacitors charging
+	// to their bias, eg after a reset) is still there, and shows up at the low frequencies.
+	function steady(t, v, f0, dt) {
+		var T = 1 / f0;
+		// whole periods long enough that cutting them between samples doesn't matter
+		T *= Math.max(1, Math.ceil(200 * dt / T));
+		var t1 = t[t.length - 1];
+		if (t1 - 2 * T < t[0]) return false;
+		var a = spanStats(t, v, t1 - 2 * T, t1 - T), b = spanStats(t, v, t1 - T, t1);
+		var tol = SETTLE_TOL * Math.max(b.rms, 1e-12);
+		return Math.abs(a.mean - b.mean) <= tol && Math.abs(a.rms - b.rms) <= tol;
 	}
 
 	function blockStats(x) {
@@ -822,6 +868,10 @@
 	// Fixed points use every time step.  raw is the number of time steps needed.
 	// With a source frequency the block then holds a whole number of its periods (see
 	// wholePeriods()): the size is near the power of 2 chosen (a fixed one is not exceeded).
+	// steady state: how much a period may differ from the one before (relative to the RMS), and
+	// after how many records of simulated time fast acquisition stops waiting for it (a signal
+	// that is not periodic with the source never gets there)
+	var SETTLE_TOL = 1e-7, SETTLE_MAX_RECORDS = 8;
 	var AUTO_CYCLES = 16, AUTO_DF = 5, PREVIEW_CYCLES = 5, AUTO_MIN_FFT = 4096, AUTO_MAX_FFT = 16384, AUTO_LIMIT_FFT = 262144, MAX_RAW = 600000;
 	function plan(dt, hint) {
 		if (settings.size !== 'auto') {
@@ -957,12 +1007,23 @@
 			var span = st.count > 1 ? st.t1 - st.t0 : 0, need = (pl.raw - 1) * dt;
 			var full = span >= need - dt * 1e-6;
 			progress = full ? 1 : Math.max(0, Math.min(0.999, span / need));
-			// the simulation runs flat out until the samples are all there
-			sim.fftSetFast(settings.fast && running && !full, need);
+			// a new acquisition (reset, restart, cleared): the signal has to settle again
+			if (!settle || st.count < settle.prevCount || (st.count && st.t1 < settle.prevT1))
+				settle = { start: st.count ? st.t0 : 0, prevCount: 0, prevT1: 0, at: null, gaveUp: !(hint > 0) };
+			settle.prevCount = st.count; settle.prevT1 = st.count ? st.t1 : 0;
+			if (full && settle.at === null && !settle.gaveUp && st.t1 - settle.start > SETTLE_MAX_RECORDS * need)
+				settle.gaveUp = true;
+			// the simulation runs flat out until the samples are all there, and then until they are
+			// all from after the start-up transient (otherwise it takes a whole record at the set
+			// speed, often slow, for the transient to roll out)
+			settling = settings.fast && running && !settle.gaveUp && (settle.at === null || st.t0 < settle.at);
+			sim.fftSetFast(settings.fast && running && (!full || settling), settling ? Infinity : need);
 			if (tLast !== null && tLast === lastSampleT && spec) { draw(); return; }   // nothing new (paused)
 			var t0 = Date.now(), x = null, preview = false, smp;
 			if (full) {
 				smp = sim.fftSamples();
+				if (settling && settle.at === null && steady(smp.t, smp.v, hint, dt))
+					settle.at = smp.t[smp.t.length - 1];
 				x = resample(smp.t, smp.v, pl.raw, dt);
 			} else {
 				// not all recorded yet: a coarser spectrum of what there is, from PREVIEW_CYCLES
@@ -1019,6 +1080,7 @@
 			var parts = [];
 			if (targets && !targets.outputs.length) parts.push('<b>' + S.noOutput + '</b>');
 			else if (progress < 1 && (!spec || spec.preview)) parts.push('<b>' + (running ? fmt(S.acquiring, Math.floor(progress * 100)) : S.paused) + '</b>');
+			else if (settling && progress >= 1) parts.push('<b>' + S.settling + '</b>');
 			if (spec) {
 				var avgTxt = settings.averages > 1 && avg ? S.avgOf.replace('{a}', avg.list.length).replace('{b}', settings.averages) : '';
 				if (meas && meas.lowRes && !spec.preview) parts.push('<b>' + (settings.size === 'auto' ? S.lowResAuto : S.lowRes) + '</b>');
@@ -1500,5 +1562,5 @@
 	};
 	if (window.CircuitJS1) init(window.CircuitJS1);
 
-	window.CircuitJSFFT = { open: open, _test: { last: function () { return { spec: spec, meas: meas }; }, fft: fft, analyze: analyze, measure: measure, settings: settings, plan: plan, plotPoints: plotPoints, decimate: decimate, dft: dft, firFilter: firFilter, wholePeriods: wholePeriods, isWhole: isWhole, resample: resample, blockStats: blockStats, PASSBAND: PASSBAND } };
+	window.CircuitJSFFT = { open: open, _test: { last: function () { return { spec: spec, meas: meas }; }, fft: fft, analyze: analyze, measure: measure, settings: settings, plan: plan, plotPoints: plotPoints, decimate: decimate, dft: dft, firFilter: firFilter, wholePeriods: wholePeriods, isWhole: isWhole, resample: resample, blockStats: blockStats, steady: steady, PASSBAND: PASSBAND } };
 })();
