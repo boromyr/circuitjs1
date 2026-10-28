@@ -336,12 +336,20 @@ export class SubcircuitElm extends CompositeElm {
                 EditInfo.makeLink("subcircuits.html", "Model Name");
             const ei = new EditInfo(label, 0, -1, -1);
             this.models = SubcircuitModel.getModelList();
-            ei.choice = new Choice();
-            for (let i = 0; i < this.models.length; i++) {
-                const ccm = this.models[i];
-                ei.choice.add(ccm.name);
-                if (ccm === this.model) ei.choice.select(i);
+            // the model may have been replaced in the map (or be internal); select it by name,
+            // and list it when it's missing so the choice doesn't show another model
+            const cur = this.model;
+            let sel = cur == null ? -1 : this.models.indexOf(cur);
+            if (sel < 0 && cur != null)
+                sel = this.models.findIndex(m => m.name === cur.name);
+            if (sel < 0 && cur != null) {
+                this.models.unshift(cur);
+                sel = 0;
             }
+            ei.choice = new Choice();
+            for (const ccm of this.models)
+                ei.choice.add(ccm.name);
+            if (sel >= 0) ei.choice.select(sel);
             return ei;
         }
         // remaining fields all depend on having a resolved model
@@ -391,9 +399,11 @@ export class SubcircuitElm extends CompositeElm {
             dlg.show();
             return;
         }
-        if (n === 2) {
+        // without the View Components button, field 2 is the high logic voltage, which OK applies
+        if (n === 2 && this.canViewComponents()) {
             CircuitElm.app.ui.pushSubcircuit(this, this.buildDisplayElmList());
             CirSim.editDialog.closeDialog();
+            return;
         }
         const hvIdx = this.canViewComponents() ? 3 : 2;
         if (n === hvIdx) {
