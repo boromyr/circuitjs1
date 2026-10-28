@@ -346,7 +346,7 @@ export class Scrollbar {
     addChangeHandler(fn: () => void): void { this.command = fn; }
 }
 
-class LoadFile {
+export class LoadFile {
     element: HTMLInputElement;
     static isSupported(): boolean { return !!(window.File && window.FileReader); }
 
