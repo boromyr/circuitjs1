@@ -84,7 +84,7 @@
 		averages: 1,
 		harmonics: 10,
 		markers: true,
-		fast: false,
+		fast: true,
 		logVolts: false,
 		cursors: false,
 		curA: null,     // cursor frequencies (Hz), null = not placed yet
@@ -176,9 +176,9 @@
 		if (s) for (var k in settings) if (s.hasOwnProperty(k)) settings[k] = s[k];
 		if (settings.size !== 'auto' && SIZES.indexOf(settings.size) < 0) settings.size = 'auto';
 		if (!WINDOWS[settings.window]) settings.window = 'bh';
-		// fast acquisition overrides the simulation speed, so it is never turned on by itself:
-		// each session starts with it off
-		settings.fast = false;
+		// fast acquisition: each session starts with it on (it can be turned off for the session),
+		// so after a reset the spectrum is ready without waiting at the set speed
+		settings.fast = true;
 	})();
 	function saveSettings() { save('settings', settings); }
 
@@ -242,10 +242,9 @@
 		return trim(t * 1e6) + ' µs';
 	}
 	function fmtDb(v) { return isFinite(v) ? v.toFixed(2) + ' dB' : '—'; }
-	// a difference in dB, with the digits it needs when it is tiny (the noise far below the harmonics)
-	function fmtDeltaDb(d) {
-		if (!isFinite(d)) return '—';
-		return (d >= 0 ? '+' : '') + (Math.abs(d) >= 0.01 || d === 0 ? d.toFixed(3) : d.toExponential(1)) + ' dB';
+	// a difference of ratios in %, with the digits it needs when it is tiny (the noise far below the harmonics)
+	function fmtDeltaPct(d) {
+		return (d >= 0 ? '+' : '-') + fmtPct(Math.abs(d));
 	}
 	function db20(x) { return x > 0 ? 20 * Math.log10(x) : -Infinity; }
 	function db10(x) { return x > 0 ? 10 * Math.log10(x) : -Infinity; }
@@ -517,9 +516,9 @@
 		for (k = 0; k < nb; k++) if (!used[k]) pn += s.pw[k];
 		m.thd = Math.sqrt(ph / p1);
 		m.thdn = Math.sqrt((ph + pn) / p1);
-		// THD+N - THD in dB, from the noise itself: subtracting the two loses it when it is far
-		// below the harmonics
-		m.dThd = ph > 0 ? 10 * Math.log1p(pn / ph) / Math.LN10 : Infinity;
+		// THD+N - THD (a ratio, like them), from the noise itself: subtracting the two loses it
+		// when it is far below the harmonics
+		m.dThd = m.thdn + m.thd > 0 ? (pn / p1) / (m.thdn + m.thd) : 0;
 		return m;
 	}
 
@@ -1121,7 +1120,7 @@
 			h += '<table>';
 			h += row(M.thd, fmtPct(meas.thd) + '<br><span style="color:#9a9a9a">' + fmtDb(db20(meas.thd)) + '</span>');
 			h += row(M.thdn, fmtPct(meas.thdn) + '<br><span style="color:#9a9a9a">' + fmtDb(db20(meas.thdn)) + '</span>' +
-				'<br><span style="color:#9a9a9a" title="' + M.dThdTip + '">Δ ' + fmtDeltaDb(meas.dThd) + '</span>');
+				'<br><span style="color:#9a9a9a" title="' + M.dThdTip + '">Δ ' + fmtDeltaPct(meas.dThd) + '</span>');
 			h += '</table>';
 			if (meas.harmonics.length) {
 				h += '<h3>' + M.harmonics + '</h3><table class="harm"><tr class="hd"><td>' + M.h + '</td><td>' + M.freq +
