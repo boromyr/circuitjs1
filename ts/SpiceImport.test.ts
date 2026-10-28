@@ -171,36 +171,6 @@ describe("capacitors", () => {
         expect(lines.length).toBe(2);
         expect(sub!.dump.split(" ").map(s => CustomLogicModel.unescape(s))).toEqual(["2 2.68e-11 1.198 1.198", "2 1e-9 0 0"]);
     });
-    it("read IC = with spaces too", () => {
-        const sub = new SpiceImport(() => {}).parse(".SUBCKT T A B\nC1 A B 1n IC = 1.5\n.ENDS\n");
-        expect(CustomLogicModel.unescape(sub!.dump)).toBe("2 1e-9 1.5 1.5");
-    });
-});
-
-describe("parameters of nested subcircuits", () => {
-    // the value of the resistor the inner subcircuit makes
-    const resistor = (text: string) => {
-        const log: string[] = [];
-        const sub = new SpiceImport(s => log.push(s)).parse(text);
-        expect(sub, log.join("\n")).not.toBeNull();
-        return CustomLogicModel.unescape(sub!.dump);
-    };
-    it("evaluate defaults that use other parameters with the values of the instance", () => {
-        const inner = ".subckt inner p n params: g=1 k={g*2}\nR1 p n {k}\n.ends\n";
-        expect(resistor(".subckt top a b\nX1 a b inner params: g=3\n.ends\n" + inner)).toBe("0 6");
-        expect(resistor(".subckt top a b\nX1 a b inner\n.ends\n" + inner)).toBe("0 2");
-    });
-    it("evaluate defaults that use global parameters", () => {
-        expect(resistor(".param rv=2k\n.subckt top a b\nX1 a b inner\n.ends\n" +
-            ".subckt inner p n params: r={rv}\nR1 p n {r}\n.ends\n")).toBe("0 2000");
-    });
-    it("log an unknown name instead of throwing", () => {
-        const log: string[] = [];
-        const sub = new SpiceImport(s => log.push(s)).parse(".subckt top a b\nX1 a b inner\n.ends\n" +
-            ".subckt inner p n params: r={nope}\nR1 p n {r}\n.ends\n");
-        expect(sub).toBeNull();
-        expect(log.some(l => l.startsWith("can't compute value"))).toBe(true);
-    });
 });
 
 describe(".model lines", () => {

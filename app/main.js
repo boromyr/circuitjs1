@@ -296,37 +296,15 @@ ipcMain.on('remove-recent-file', (event, file) => {
 // only the first window may reopen the last circuit (Options > Reopen Last Circuit at Startup)
 var firstWindowMade = false;
 
-// how long the page has to answer when its window is closed (see askToSaveBeforeClose)
-const CLOSE_INFO_TIMEOUT = 5000;
-
 // true if the window may close: it has no unsaved changes, or they were saved or given up
 // (the texts come from the simulator page, which has the translations)
 async function askToSaveBeforeClose(win) {
   var wc = win.webContents;
   var info = null;
   try {
-    // a page that hangs (eg a script in an endless loop) would never answer and keep the
-    // window from closing
-    info = await Promise.race([
-      wc.executeJavaScript('window.getCloseInfo ? window.getCloseInfo() : null'),
-      new Promise(function (resolve, reject) {
-        setTimeout(function () { reject(new Error('timeout')); }, CLOSE_INFO_TIMEOUT);
-      })
-    ]);
+    info = await wc.executeJavaScript('window.getCloseInfo ? window.getCloseInfo() : null');
   } catch (err) {
-    if (!err || err.message !== 'timeout')
-      return true;
-    // (in English: the page, which has the translations, can't give them)
-    var nr = await dialog.showMessageBox(win, {
-      type: 'warning',
-      buttons: ['Close', 'Cancel'],
-      defaultId: 1,
-      cancelId: 1,
-      noLink: true,
-      title: 'CircuitJS',
-      message: 'The page is not responding. Close the window without saving?'
-    });
-    return nr.response === 0;
+    return true;
   }
   if (!info || !info.modified)
     return true;

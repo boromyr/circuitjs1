@@ -9,6 +9,4 @@ export class OpAmpRealSwapElm extends OpAmpRealElm {
         this.setPoints();
     }
     getDumpClass(): Function { return OpAmpRealElm; }
-    // saved as an OpAmpRealElm (the tag would come from the class name), so other versions can read it
-    getXmlDumpType(): string { return "OpAmpReal"; }
 }
