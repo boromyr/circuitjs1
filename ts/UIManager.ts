@@ -43,6 +43,7 @@ import { MyCommand } from "./MyCommand";
 import { parseIntStrict, parseFloatStrict } from "./NumberParse";
 import { CommandPaletteRegistry } from "./CommandPaletteRegistry";
 import { ScopeControls } from "./ScopeControls";
+import { EditDialog } from "./EditDialog";
 
 // GWT KeyCodes equivalents
 const KEY_BACKSPACE = 8;
@@ -374,11 +375,11 @@ export class LoadFile {
     }
 
     // also used for files opened by the Electron app (File > Open File..., Open Recent).
-    // Returns false for a subcircuit library, which doesn't replace the circuit.
+    // Returns false for a model library, which doesn't replace the circuit.
     static doLoadCallback(app: CirSim, text: string, name: string): boolean {
-        if (CircuitLoader.isSubcircuitLibrary(text)) {
-            // library files just add global subcircuits; keep the current circuit and its title
-            app.loader.readSubcircuitLibrary(text);
+        if (CircuitLoader.isModelLibrary(text)) {
+            // library files just add global models; keep the current circuit and its title
+            app.loader.readModelLibrary(text);
             app.createNewLoadFile();
             return false;
         }
@@ -415,7 +416,19 @@ class CheckboxMenuItem {
         }
     }
     getShortcut(): string { return this._shortcut; }
-    setShortcut(s: string): void { this._shortcut = s; }
+    // also redraws the shortcut shown in the menu (the label is built once, before saved
+    // shortcuts are loaded), as a readable name like "F3" rather than the stored char
+    setShortcut(s: string): void {
+        this._shortcut = s;
+        if (!this._li) return;
+        let hint = this._li.querySelector('.shortcutHint') as HTMLElement | null;
+        if (!hint) {
+            hint = document.createElement('span');
+            hint.className = 'shortcutHint';
+            this._li.appendChild(hint);
+        }
+        hint.textContent = KeyNames.displayText(s) ?? s;
+    }
     setScheduledCommand(cmd: { execute(): void }): void { this._command = () => cmd.execute(); }
     setCommand(cmd: { execute(): void }): void { this._command = () => cmd.execute(); }
     execute(): void { if (this._command) this._command(); }
@@ -1559,6 +1572,19 @@ export class UIManager {
         return this.menus.noEditCheckItem.getState() || this.subcircuitStack.length > 0;
     }
 
+    isViewingSubcircuit(): boolean {
+        return this.subcircuitStack.length > 0;
+    }
+
+    // can elm's properties be edited?  inside a subcircuit view, only state fields can be
+    // (see EditDialog's state-only mode), so only elements that have some
+    canEditProperties(elm: CircuitElm): boolean {
+        if (!this.isReadOnly())
+            return true;
+        return this.isViewingSubcircuit() && !this.menus.noEditCheckItem.getState() &&
+            EditDialog.hasStateFields(elm);
+    }
+
     // show an element (menu bar) as a floating context-menu popup at the given client coordinates
     showContextPanel(content: HTMLElement, clientX: number, clientY: number): void {
         // remove any existing context panel
@@ -2344,9 +2370,11 @@ export class UIManager {
 
             this.app.shortcuts.clear();
 
+            // the element menu is built twice (right-click menu and Draw menu), so there are
+            // two items per class; clear all of them, skipping fixed labels like "(Alt-drag)"
             for (let i = 0; i !== this.mainMenuItems.length; i++) {
                 const item = this.mainMenuItems[i];
-                if (item.getShortcut().length > 1) break;
+                if (item.getShortcut().length > 1) continue;
                 item.setShortcut("");
             }
 
@@ -2363,7 +2391,6 @@ export class UIManager {
                 for (let j = 0; j !== this.mainMenuItems.length; j++) {
                     if (this.mainMenuItemNames[j] === className) {
                         this.mainMenuItems[j].setShortcut(String.fromCharCode(c));
-                        break;
                     }
                 }
             }

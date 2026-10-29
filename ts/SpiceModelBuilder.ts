@@ -35,9 +35,9 @@ export class SpiceModelBuilder {
 
         // the device models of the elements are written into the subcircuit's definition (so
         // it works in other sessions and circuits), unless already marked as written
-        DiodeModel.clearDumpedFlags();
-        TransistorModel.clearDumpedFlags();
-        MosfetModel.clearDumpedFlags();
+        DiodeModel.registry.clearDumpedFlags();
+        TransistorModel.registry.clearDumpedFlags();
+        MosfetModel.registry.clearDumpedFlags();
         const model = new SubcircuitModel();
         model.extList = sub.extList;
         model.convertOldFormatToXml(sub.elmDump, sub.dump);
@@ -53,7 +53,7 @@ export class SpiceModelBuilder {
         const renamed = new Map<string, string>();
         for (const child of Array.from(root.children)) {
             const mo = child.getAttribute("mo");
-            const m = (mo == null || child.tagName === "mm") ? null : MosfetModel.modelMap?.get(mo);
+            const m = (mo == null || child.tagName === "mm") ? null : MosfetModel.registry.get(mo);
             if (m == null || !m.oldStyle || !m.isJfet())
                 continue;
             let name = renamed.get(mo!);

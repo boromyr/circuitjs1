@@ -345,13 +345,15 @@ describe("model lists", () => {
         expect(DiodeModel.getModelWithName("DZ5V1").getKind()).toBe(DiodeModel.KIND_ZENER);
     });
     it("hide only the models of subcircuits imported from SPICE, never built-in ones", () => {
+        // (the built-in subcircuits need a DOM)
+        (SubcircuitModel.registry as any).initialized = true;
         const sub = (name: string, mo: string, spice: string | null) => {
             const m = new SubcircuitModel();
             m.name = name;
             m.spiceText = spice;
             const child = { tagName: "d", getAttribute: (a: string) => a === "mo" ? mo : null };
             (m as any).elmDoc = { documentElement: { children: [child] } };
-            SubcircuitModel.globalModelMap.set(name, m);
+            SubcircuitModel.registry.setGlobal(m);
         };
         DiodeModel.getModelWithName("audit-imported-d").description = "SPICE";
         DiodeModel.getModelWithName("audit-drawn-d");
@@ -363,7 +365,7 @@ describe("model lists", () => {
         expect(names).toContain("audit-drawn-d");
         expect(names).not.toContain("audit-imported-d");
         for (const n of ["audit-drawn", "audit-imported", "audit-imported2"])
-            SubcircuitModel.globalModelMap.delete(n);
+            SubcircuitModel.registry.removeGlobal(n);
     });
     it("bring back the J201 of circuits saved when it was built in", () => {
         const j = MosfetModel.getModelWithNameOrCopy("J201", null, true);

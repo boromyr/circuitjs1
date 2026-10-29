@@ -397,6 +397,8 @@ export class Menus {
             iconHtml("export", "Export As Link..."), "file", "exportasurl");
         fileMenu.addMenuItem(this.exportAsTextItem,
             iconHtml("export", "Export As Text..."), "file", "exportastext");
+        fileMenu.addCommand(iconHtml("export", "Export As KiCad Schematic..."),         "file", "exportaskicad");
+        fileMenu.addCommand(iconHtml("export", "Export As SPICE Netlist..."),           "file", "exportasspice");
         fileMenu.addCommand(iconHtml("image", "Export As Image..."),                    "file", "exportasimage");
         fileMenu.addCommand(iconHtml("image", "Copy Circuit Image to Clipboard"),       "file", "copypng");
         fileMenu.addCommand(iconHtml("image", "Export As SVG..."),                      "file", "exportassvg");
@@ -507,7 +509,7 @@ export class Menus {
         // ---- Tools menu ----
         const toolsMenu = new Menu(this.app);
         toolsMenu.addCommand(Locale.LS("Convert Wires to Routed Wires"), "tools", "convertWires");
-        toolsMenu.addCommand(Locale.LS("Subcircuit Manager"),            "tools", "subcircuits");
+        toolsMenu.addCommand(Locale.LS("Subcircuit/Model Manager"),      "tools", "modelmanager");
         // if (TestCreator.enabled) toolsMenu.addCommand(Locale.LS("Create Test"), "tools", "createTest");
 
         // ---- Assemble horizontal bar ----

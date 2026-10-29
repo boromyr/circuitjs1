@@ -33,19 +33,21 @@ describe("subcircuit edit dialog", () => {
 
     beforeEach(() => {
         pushed = [];
+        // (the built-in subcircuits need a DOM)
+        (SubcircuitModel.registry as any).initialized = true;
         savedApp = (CircuitElm as any).app;
         savedDialog = (CirSim as any).editDialog;
         (CircuitElm as any).app = { ui: { pushSubcircuit: (cce: any) => pushed.push(cce) } };
         (CirSim as any).editDialog = { closeDialog: () => {} };
-        SubcircuitModel.localModelMap.clear();
-        SubcircuitModel.globalModelMap.clear();
+        SubcircuitModel.registry.clearLocal();
+        SubcircuitModel.registry.globalMap.clear();
     });
 
     afterEach(() => {
         (CircuitElm as any).app = savedApp;
         (CirSim as any).editDialog = savedDialog;
-        SubcircuitModel.localModelMap.clear();
-        SubcircuitModel.globalModelMap.clear();
+        SubcircuitModel.registry.clearLocal();
+        SubcircuitModel.registry.globalMap.clear();
     });
 
     it("applying the high logic voltage doesn't open the components view", () => {
@@ -65,15 +67,15 @@ describe("subcircuit edit dialog", () => {
     });
 
     it("selects the model by name when the element holds a replaced copy", () => {
-        SubcircuitModel.localModelMap.set("AAA", model("AAA"));
-        SubcircuitModel.localModelMap.set("TLV", model("TLV"));
+        SubcircuitModel.registry.setLocal(model("AAA"));
+        SubcircuitModel.registry.setLocal(model("TLV"));
         const e = elm(model("TLV"), false);
         const ei = e.getEditInfo(0) as EditInfo;
         expect(ei.choice!.items[ei.choice!.getSelectedIndex()]).toBe("TLV");
     });
 
     it("lists the model when it isn't in the list at all", () => {
-        SubcircuitModel.localModelMap.set("AAA", model("AAA"));
+        SubcircuitModel.registry.setLocal(model("AAA"));
         const e = elm(model("ZZZ"), false);
         const ei = e.getEditInfo(0) as EditInfo;
         expect(ei.choice!.items[ei.choice!.getSelectedIndex()]).toBe("ZZZ");

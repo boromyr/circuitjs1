@@ -63,7 +63,7 @@ export class SpiceModelDatabase {
         for (const m of SpiceModelDatabase.getSubcircuits()) {
             const s: SubcircuitJson = {
                 name: m.name,
-                scope: SpiceModelDatabase.SCOPES[["local", "global", "persistent"].indexOf(m.getScope())],
+                scope: SpiceModelDatabase.SCOPES[["local", "global", "persistent"].indexOf(SubcircuitModel.registry.scope(m))],
                 menu: UserModelLibrary.getCategory(m.name),
                 spice: [],
             };
@@ -150,16 +150,14 @@ export class SpiceModelDatabase {
         // replace a model with the same name, and put it in its scope as the edit dialog does
         // (the saved copy goes too: saved models are found by name)
         m.setSaved(false);
-        SubcircuitModel.localModelMap.delete(s.name);
-        SubcircuitModel.globalModelMap.delete(s.name);
+        SubcircuitModel.registry.remove(s.name);
         const scope = SpiceModelDatabase.SCOPES.indexOf(s.scope);
         if (scope === 0)
-            SubcircuitModel.localModelMap.set(s.name, m);
+            SubcircuitModel.registry.setLocal(m);
         else if (scope === 2)
             m.setSaved(true);
         else
-            SubcircuitModel.globalModelMap.set(s.name, m);
-        SubcircuitModel.sequenceNumber++;
+            SubcircuitModel.registry.setGlobal(m);
         if (typeof s.menu === "string" && UserModelLibrary.categoryKeys.indexOf(s.menu) >= 0)
             UserModelLibrary.setCategory(s.name, s.menu);
         CirSim.theApp.refreshModels(s.name);

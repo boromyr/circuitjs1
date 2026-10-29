@@ -111,9 +111,9 @@ export class UserModelLibrary {
                     names.add(nm);
             }
         };
-        for (const m of SubcircuitModel.globalModelMap.values())
+        for (const m of SubcircuitModel.registry.globalMap.values())
             scan(m);
-        for (const m of SubcircuitModel.localModelMap.values())
+        for (const m of SubcircuitModel.registry.localMap.values())
             scan(m);
         for (const n of UserModelLibrary.entries.keys())
             names.delete(n);
@@ -154,11 +154,11 @@ export class UserModelLibrary {
         // also take it out of the model lists of the elements
         if (e != null) {
             if (e.model instanceof DiodeModel)
-                DiodeModel.modelMap?.delete(name);
+                DiodeModel.registry.remove(name);
             else if (e.model instanceof TransistorModel)
-                TransistorModel.modelMap?.delete(name);
+                TransistorModel.registry.remove(name);
             else if (e.model instanceof MosfetModel)
-                MosfetModel.modelMap?.delete(name);
+                MosfetModel.registry.remove(name);
         }
         UserModelLibrary.getStorage()?.removeItem(UserModelLibrary.MODEL_PREFIX + name);
         UserModelLibrary.sequenceNumber++;
@@ -227,8 +227,7 @@ export class UserModelLibrary {
         e.name = name;
 
         if (type === "d") {
-            DiodeModel.createModelMap();
-            if (UserModelLibrary.isBuiltInName(DiodeModel.modelMap, name))
+            if (UserModelLibrary.isBuiltInName(DiodeModel.registry, name))
                 e.name = name = name + "-spice";
             const dm = DiodeModel.getModelWithName(name);
             dm.flags = 0;
@@ -243,8 +242,7 @@ export class UserModelLibrary {
             dm.builtIn = dm.internal = dm.oldStyle = false;
             dm.updateModel();
         } else if (type === "npn" || type === "pnp") {
-            TransistorModel.createModelMap();
-            if (UserModelLibrary.isBuiltInName(TransistorModel.modelMap, name))
+            if (UserModelLibrary.isBuiltInName(TransistorModel.registry, name))
                 e.name = name = name + "-spice";
             const tm = TransistorModel.getModelWithName(name);
             tm.description = "SPICE";
@@ -277,8 +275,7 @@ export class UserModelLibrary {
                 log.push(name + ": " + Locale.LS("RB/RC/RE not supported, ignored"));
         } else if (type === "njf" || type === "pjf" || type === "nmos" || type === "pmos") {
             const jfet = type.endsWith("jf");
-            MosfetModel.createModelMap();
-            if (UserModelLibrary.isBuiltInName(MosfetModel.modelMap, name))
+            if (UserModelLibrary.isBuiltInName(MosfetModel.registry, name))
                 e.name = name = name + "-spice";
             const mm = MosfetModel.getModelWithName(name);
             mm.description = "SPICE";
@@ -326,8 +323,8 @@ export class UserModelLibrary {
         d.transitTime = tt;
     }
 
-    static isBuiltInName(map: Map<string, DeviceModel> | null, name: string): boolean {
-        const o = map?.get(name);
+    static isBuiltInName(reg: { get(name: string): DeviceModel | undefined }, name: string): boolean {
+        const o = reg.get(name);
         return o != null && o.builtIn;
     }
 

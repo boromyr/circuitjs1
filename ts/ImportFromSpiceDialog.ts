@@ -108,7 +108,7 @@ export class ImportFromSpiceDialog extends Dialog {
         addButton("OK", () => this.parseCircuit());
         addButton("Cancel", () => this.closeDialog());
         // imported models can be edited or deleted in the model manager
-        addButton("Imported Models...", () => (window as any).ModelManagerDialog?.open());
+        addButton("Imported Models...", () => (window as any).ImportedModelsDialog?.open());
         this.dialogEl.appendChild(hp);
 
         this.show();
