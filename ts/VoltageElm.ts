@@ -344,17 +344,8 @@ export class VoltageElm extends CircuitElm {
 	if (this.dx == 0 || this.dy == 0) {
 	    const showV = (this.flags & VoltageElm.FLAG_SHOW_VOLTAGE) != 0;
 	    const showF = this.showValues() && this.waveform != VoltageElm.WF_DC && this.waveform != VoltageElm.WF_NOISE;
-	    let s: string | null = null;
-	    if (showV && showF)
-		s = this.getShortVoltageText() + " " + VoltageElm.getShortUnitText(this.frequency, "Hz");
-	    else if (showV)
-		s = this.getShortVoltageText();
-	    else if (showF)
-		s = VoltageElm.getShortUnitText(this.frequency, "Hz");
-	    if (s != null) {
-		const hs = (this.waveform == VoltageElm.WF_DC && (this.flags & VoltageElm.FLAG_CIRCLE_SYMBOL) == 0) ? 16 : this.circleSize;
-		this.drawValues(g, s, hs);
-	    }
+	    const hs = (this.waveform == VoltageElm.WF_DC && (this.flags & VoltageElm.FLAG_CIRCLE_SYMBOL) == 0) ? 16 : this.circleSize;
+	    this.drawSourceValues(g, showV, showF, hs);
 	}
 	this.updateDotCount();
 	if (!this.isCreating()) {
@@ -443,16 +434,20 @@ export class VoltageElm extends CircuitElm {
 	if (this.isRailElm() && (this.dx == 0 || this.dy == 0)) {
 	    const showV = (this.flags & VoltageElm.FLAG_SHOW_VOLTAGE_RAIL) != 0;
 	    const showF = this.showValues() && this.waveform != VoltageElm.WF_NOISE;
-	    let s: string | null = null;
-	    if (showV && showF)
-		s = this.getShortVoltageText() + " " + VoltageElm.getShortUnitText(this.frequency, "Hz");
-	    else if (showV)
-		s = this.getShortVoltageText();
-	    else if (showF)
-		s = VoltageElm.getShortUnitText(this.frequency, "Hz");
-	    if (s != null)
-		this.drawValues(g, s, this.circleSize);
+	    this.drawSourceValues(g, showV, showF, this.circleSize);
 	}
+    }
+
+    // the frequency with the voltage always below it (so a change from the mouse wheel shows),
+    // or just the voltage if the source has no frequency and "Show Voltage" is on
+    drawSourceValues(g: Graphics, showV: boolean, showF: boolean, hs: number): void {
+	if (showF) {
+	    // above a horizontal source the lines stack upwards; beside a vertical one, around its middle
+	    const above = Math.trunc(this.dpx1 * hs) == 0;
+	    this.drawValues(g, VoltageElm.getShortUnitText(this.frequency, "Hz"), hs, above ? -1 : -.5);
+	    this.drawValues(g, this.getShortVoltageText(), hs, above ? 0 : .5);
+	} else if (showV)
+	    this.drawValues(g, this.getShortVoltageText(), hs);
     }
 
     addRoutingObstacle(wr: WireRouter): void { this.addRoutingObstacleWithLeads(wr, 16); }
@@ -528,6 +523,15 @@ export class VoltageElm extends CircuitElm {
 	if (this.waveform == VoltageElm.WF_DC && this.current != 0 && CircuitElm.app.showResistanceInVoltageSources)
 	    arr[i++] = "(R = " + VoltageElm.getUnitText(this.maxVoltage/this.current, Locale.ohmString) + ")";
 	arr[i++] = "P = " + VoltageElm.getUnitText(this.getPower(), "W");
+    }
+    getWheelVoltageIndex(ctrl: boolean): number {
+	// only plain sources, not subclasses with their own properties (slider rail, audio input...)
+	if (this.getEditInfo !== VoltageElm.prototype.getEditInfo || this.waveform == VoltageElm.WF_VAR)
+	    return -1;
+	// (with ctrl too if there is no frequency, rather than zooming the circuit)
+	if (!ctrl || this.waveform == VoltageElm.WF_DC || this.waveform == VoltageElm.WF_NOISE || this.timeSpec())
+	    return 0;
+	return this.getFrequencyOffset() + (this.hasTimingOptions() ? 1 : 0);
     }
     getFrequencyOffset(): number { return 5; }
     hasTimingOptions(): boolean { return this.waveform == VoltageElm.WF_PULSE || this.waveform == VoltageElm.WF_SQUARE; }

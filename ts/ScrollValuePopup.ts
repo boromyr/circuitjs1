@@ -20,22 +20,25 @@
 import { CirSim } from "./CirSim";
 import { CircuitElm } from "./CircuitElm";
 import { EditInfo } from "./EditInfo";
+import { Locale } from "./Locale";
 
-// popup shown when the mouse wheel is scrolled over a resistor/capacitor/inductor: scrolling
-// steps the value through the E12 preferred-value series, previewing a few neighboring values
+// popup shown when the mouse wheel is scrolled over a resistor/capacitor/inductor or a voltage
+// source: scrolling steps the value through a series of preferred values (E12 for components),
+// previewing a few neighboring values
 export class ScrollValuePopup {
 
     static readonly e12: number[] = [1.0, 1.2, 1.5, 1.8, 2.2, 2.7, 3.3, 3.9, 4.7, 5.6, 6.8, 8.2];
+    // frequencies per decade (50/60 Hz, 400 Hz, 1 kHz...)
+    static readonly freqSeries: number[] = [1.0, 1.2, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0];
     static readonly labMax = 5;
     static readonly scale = 6;
 
     private values: number[] = [];
-    private minpow = 0;
-    private maxpow = 1;
     private nvalues = 0;
     private currentidx = 0;
     private lastidx = 0;
     private myElm: CircuitElm;
+    private editIndex: number;
     private labels: HTMLDivElement[] = [];
     private deltaY = 0;
     private name = "";
@@ -57,8 +60,10 @@ export class ScrollValuePopup {
             this.close(false);
     };
 
-    constructor(x: number, y: number, dy: number, elm: CircuitElm, sim: CirSim) {
+    // editIndex: the edit-info value to step (a voltage source's voltage or frequency)
+    constructor(x: number, y: number, dy: number, elm: CircuitElm, sim: CirSim, editIndex: number = 0) {
         this.myElm = elm;
+        this.editIndex = editIndex;
         this.sim = sim;
         this.sim.undoManager.pushUndo();
         this.setupValues();
@@ -100,28 +105,24 @@ export class ScrollValuePopup {
     }
 
     private setupValues(): void {
-        if (this.myElm.isResistorElm()) {
-            this.minpow = -1;
-            this.maxpow = 7;
-        }
-        if (this.myElm.isCapacitorElm()) {
-            this.minpow = -11;
-            this.maxpow = -3;
-        }
-        if (this.myElm.isInductorElm()) {
-            this.minpow = -6;
-            this.maxpow = 0;
-        }
-        this.values = new Array(2 + (this.maxpow - this.minpow) * 12);
-        let ptr = 0;
-        for (let i = this.minpow; i <= this.maxpow; i++) {
-            const jmax = (i !== this.maxpow) ? 12 : 1;
-            for (let j = 0; j < jmax; j++, ptr++)
-                this.values[ptr] = Math.pow(10.0, i) * ScrollValuePopup.e12[j];
-        }
-        this.nvalues = ptr;
+        if (this.myElm.isResistorElm())
+            this.values = ScrollValuePopup.decades(-1, 7, ScrollValuePopup.e12);
+        else if (this.myElm.isCapacitorElm())
+            this.values = ScrollValuePopup.decades(-11, -3, ScrollValuePopup.e12);
+        else if (this.myElm.isInductorElm())
+            this.values = ScrollValuePopup.decades(-6, 0, ScrollValuePopup.e12);
+        else if (this.editIndex > 0) {
+            // a source's frequency, up to what the time step allows (above it setFrequency asks
+            // to change the time step, which would pop up a confirm at every notch)
+            const maxfreq = 1 / (8 * CircuitElm.sim.maxTimeStep);
+            this.values = ScrollValuePopup.decades(-1, 7, ScrollValuePopup.freqSeries).filter(f => f <= maxfreq);
+        } else
+            this.values = ScrollValuePopup.voltages();
+        this.nvalues = this.values.length;
         this.values[this.nvalues] = 1e99;
-        this.inf = this.myElm.getEditInfo(0)!;
+        this.inf = this.myElm.getEditInfo(this.editIndex)!;
+        // keep a source's waveform phase continuous (see VoltageElm.setEditValue)
+        this.inf.continuous = true;
         const currentvalue = this.inf.value;
         for (let i = 0; i < this.nvalues + 1; i++) {
             if (CircuitElm.getShortUnitText(currentvalue, "") === CircuitElm.getShortUnitText(this.values[i], "")) {
@@ -140,8 +141,38 @@ export class ScrollValuePopup {
                 break;
             }
         }
-        this.name = this.inf.name;
+        this.name = Locale.LS(this.inf.name);
         this.lastidx = this.currentidx;
+    }
+
+    // series[j] * 10^i for minpow <= i < maxpow, then 10^maxpow
+    private static decades(minpow: number, maxpow: number, series: number[]): number[] {
+        const v: number[] = [];
+        for (let i = minpow; i <= maxpow; i++) {
+            const jmax = (i !== maxpow) ? series.length : 1;
+            for (let j = 0; j < jmax; j++)
+                v.push(Math.pow(10.0, i) * series[j]);
+        }
+        return v;
+    }
+
+    // voltages from -1000 to 1000, finer near 0, with the usual supply values (1.8, 3.3, 12, 24...)
+    private static voltages(): number[] {
+        const pos: number[] = [];
+        const step = (from: number, to: number, d: number) => {
+            for (let k = 0; from + k * d < to - 1e-9; k++)
+                pos.push(Math.round((from + k * d) * 10) / 10);
+        };
+        step(0.1, 1, 0.1);
+        step(1, 10, 0.5);
+        pos.push(1.2, 1.8, 3.3);
+        step(10, 30, 1);
+        step(30, 100, 5);
+        step(100, 300, 10);
+        step(300, 1000, 50);
+        pos.push(1000);
+        pos.sort((a, b) => a - b);
+        return pos.slice().reverse().map(v => -v).concat([0], pos);
     }
 
     private setupLabels(): void {
@@ -189,7 +220,7 @@ export class ScrollValuePopup {
         if (i !== this.lastidx) {
             this.lastidx = i;
             this.inf.value = this.values[i];
-            this.myElm.setEditValue(0, this.inf);
+            this.myElm.setEditValue(this.editIndex, this.inf);
             this.sim.needAnalyze();
         }
     }

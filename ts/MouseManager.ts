@@ -1053,7 +1053,7 @@ export class MouseManager {
     private onClick(e: MouseEvent): void {
 	e.preventDefault();
 	if (e.button === 1) // middle button
-	    this.scrollValues(e.clientX, e.clientY, 0);
+	    this.scrollValues(e.clientX, e.clientY, 0, e.ctrlKey || e.metaKey);
     }
 
     private onDoubleClick(e: MouseEvent): void {
@@ -1403,7 +1403,7 @@ export class MouseManager {
 	    zoomOnly = true;
 
 	if (!zoomOnly)
-	    this.scrollValues(e.clientX, e.clientY, ScrollValuePopup.normalizeWheelDelta(e));
+	    this.scrollValues(e.clientX, e.clientY, ScrollValuePopup.normalizeWheelDelta(e), e.ctrlKey || e.metaKey);
 
 	if (this.mouseElm != null && (this.mouseElm as any).onMouseWheel && !zoomOnly)
 	    (this.mouseElm as any).onMouseWheel(e);
@@ -1441,10 +1441,15 @@ export class MouseManager {
 	this.sim.transform[5] = constY - cy * newScale;
     }
 
-    private scrollValues(x: number, y: number, deltay: number): void {
+    // ctrl steps a source's frequency instead of its voltage
+    private scrollValues(x: number, y: number, deltay: number, ctrl: boolean): void {
 	if (this.mouseElm != null && !this.sim.modalDialogIsShowing() && this.sim.scopeManager.scopeSelected === -1) {
 	    if (this.mouseElm.isResistorElm() || this.mouseElm.isCapacitorElm() || this.mouseElm.isInductorElm()) {
 		CirSim.scrollValuePopup = new ScrollValuePopup(x, y, deltay, this.mouseElm, this.sim);
+	    } else {
+		const n = this.mouseElm.getWheelVoltageIndex(ctrl);
+		if (n >= 0)
+		    CirSim.scrollValuePopup = new ScrollValuePopup(x, y, deltay, this.mouseElm, this.sim, n);
 	    }
 	}
     }

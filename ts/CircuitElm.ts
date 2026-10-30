@@ -989,7 +989,8 @@ export abstract class CircuitElm implements Editable {
     }
 
     // draw component values (number of resistor ohms, etc).  hs = offset
-    drawValues(g: Graphics, s: string, hs: number): void {
+    // line moves the text by that many lines down (to stack several values)
+    drawValues(g: Graphics, s: string, hs: number, line: number = 0): void {
         if (s == null)
             return;
         g.save();
@@ -998,6 +999,7 @@ export abstract class CircuitElm implements Editable {
         const w = Math.trunc(g.context.measureText(s).width);
         g.setColor(CircuitElm.whiteColor);
         const ya = Math.trunc(g.currentFontSize) / 2;
+        const ly = Math.round(line * (Math.trunc(g.currentFontSize) + 2));
         let xc: number, yc: number;
         if (this.isRailElm() || this.isSweepElm()) {
             xc = this.x2;
@@ -1009,12 +1011,12 @@ export abstract class CircuitElm implements Editable {
         const dpx = Math.trunc(this.dpx1 * hs);
         const dpy = Math.trunc(this.dpy1 * hs);
         if (dpx === 0)
-            g.drawString(s, xc - w/2, yc - CircuitElm.abs(dpy) - 2);
+            g.drawString(s, xc - w/2, yc - CircuitElm.abs(dpy) - 2 + ly);
         else {
             let xx = xc + CircuitElm.abs(dpx) + 2;
             if (this.isVoltageElm() || (this.x < this.x2 && this.y > this.y2))
                 xx = xc - (w + CircuitElm.abs(dpx) + 2);
-            g.drawString(s, xx, yc + dpy + ya);
+            g.drawString(s, xx, yc + dpy + ya + ly);
         }
         g.restore();
     }
@@ -1477,6 +1479,9 @@ export abstract class CircuitElm implements Editable {
     isPotElm(): boolean { return false; }
     isResistorElm(): boolean { return false; }
     isCapacitorElm(): boolean { return false; }
+    // edit-info index of the voltage (or, with ctrl, frequency) the mouse wheel steps
+    // through (see ScrollValuePopup), or -1 if none
+    getWheelVoltageIndex(ctrl: boolean): number { return -1; }
     isSubcircuitElm(): boolean { return false; }
     isTransistorElm(): boolean { return false; }
     isMosfetElm(): boolean { return false; }
