@@ -229,8 +229,9 @@ export class SpiceImport {
         const has = SpiceImport.has;
         const t = h.text;
         const nc = h.nodes.length;
-        if (nc >= 5 && (has(t, "operational amplifier", "op amp", "opamp", "op-amp", "comparator") ||
-                SpiceImport.countPins(h, SubcircuitSymbols.SYM_OPAMP) >= 3 || nc === 5))
+        // the symbol has 5 pins: parts with more (current-sense and instrumentation amplifiers
+        // with reference pins, op-amps with shutdown or offset pins) would lose the others
+        if (nc === 5)
             return SubcircuitSymbols.SYM_OPAMP;
         if (nc === 2 && (has(t, "diode", "zener", "rectifier", "schottky", "led") || SpiceImport.countPins(h, "diode") === 2))
             return has(t, "zener") ? "zener" : has(t, "schottky") ? "schottky" : "diode";
@@ -649,7 +650,7 @@ export class SpiceImport {
                         }
                     } else
                         this.ldump = "0 0 0 " + (-parseNumber(x));
-                } else if (c === 'b' || ((c === 'e' || c === 'g') && /\svalue\b/i.test(line))) {
+                } else if (c === 'b' || ((c === 'e' || c === 'g') && /\s(value|table)\b/i.test(line))) {
                     this.parseValueSource(c, line);
                 } else if (c === 'e') {
                     this.parseControlledSource("VCVSElm", st, false);
@@ -734,14 +735,25 @@ export class SpiceImport {
             cls = (c === 'e') ? "VCVSElm" : "VCCSElm";
             rest = rest.replace(/^value\s*=?\s*/, "");
         }
+        const inputs: string[] = [];
+        let expr: string;
+        // TABLE {x} = (x0, y0) (x1, y1) ...: linear interpolation, constant beyond the ends
+        const tm = /^table\s*\{(.*)\}\s*=?\s*(.*)$/.exec(rest);
+        if (tm != null) {
+            const x = SpiceNetlist.translateExpr(tm[1], inputs);
+            const pts = tm[2].replace(/[(),]/g, " ").trim().split(/\s+/).filter(t => t !== "")
+                .map(t => SpiceImport.parseValue(t));
+            if (pts.length < 2 || pts.length % 2 !== 0)
+                throw new Error("bad table");
+            expr = (pts.length === 2) ? String(pts[1]) : "pwl(" + x + "," + pts.join(",") + ")";
+        } else
+            expr = SpiceNetlist.translateExpr(rest, inputs);
         // swap output nodes for current sources because current flows the opposite way
         if (cls === "VCCSElm") {
             const x = n1;
             n1 = n2;
             n2 = x;
         }
-        const inputs: string[] = [];
-        const expr = SpiceNetlist.translateExpr(rest, inputs);
         this.elmDump += cls;
         for (const inp of inputs)
             this.elmDump += " " + this.findNode(inp);

@@ -335,6 +335,10 @@ describe("guessSymbol for diode and JFET types", () => {
         expect(SpiceImport.guessSymbol(header("J201 N-channel JFET", "d g s"))).toBe("njfet");
         expect(SpiceImport.guessSymbol(header("P-channel JFET", "d g s"))).toBe("pjfet");
     });
+    it("uses the op-amp symbol only for 5 pins", () => {
+        expect(SpiceImport.guessSymbol(header("INA296A4", "IN+ IN- VS OUT GND REF1 REF2"))).toBeNull();
+        expect(SpiceImport.guessSymbol(header("op amp with shutdown", "IN+ IN- V+ V- OUT SHDN"))).toBeNull();
+    });
 });
 
 describe("model lists", () => {
@@ -373,5 +377,24 @@ describe("model lists", () => {
         expect(j.isJfet()).toBe(true);
         expect(j.threshold).toBeCloseTo(-.5961, 6);
         expect(j.builtIn).toBe(false);
+    });
+});
+
+describe("TABLE sources", () => {
+    it("become a pwl() of the controlling expression", () => {
+        const log: string[] = [];
+        const sub = new SpiceImport(s => log.push(s)).parse(".SUBCKT T A B C\n" +
+            "G1 C 0 TABLE {(V(A,B))} =\n+(0, 5E-6)\n+(0.03, 2E-5)\n+(1, 1m)\n.ENDS\n");
+        expect(sub, log.join("\n")).not.toBeNull();
+        const dump = CustomLogicModel.unescape(sub!.dump);
+        expect(dump).toContain("pwl(");
+        const expr = dump.substring(dump.indexOf("pwl("));
+        const e = new ExprParser(expr).parseExpression();
+        const es = new ExprState(2);
+        const at = (va: number, vb: number) => { es.values[0] = va; es.values[1] = vb; return e.eval(es); };
+        expect(at(-1, 0)).toBeCloseTo(5e-6, 12);
+        expect(at(0.015, 0)).toBeCloseTo(1.25e-5, 12);
+        expect(at(0.5, 0.48)).toBeCloseTo(1.5e-5, 12);
+        expect(at(5, 0)).toBeCloseTo(1e-3, 12);
     });
 });
