@@ -257,14 +257,20 @@ export class ExprEngine {
         for (let i = 0; i !== n; i++) {
             const x0 = this.getInputValue(i);
             let dv = x0 - this.lastInputs[i];
-            if (Math.abs(dv) < 1e-6) dv = 1e-6;
+            // the step is relative for large inputs: nodes inside macromodels can sit at
+            // millions of volts, where a step of 1e-6 is lost in the rounding of the values
+            const minStep = 1e-6 * Math.max(1, Math.abs(x0));
+            if (Math.abs(dv) < minStep) dv = minStep;
             this.setInputValue(i, x0);
             const v = sgn * e.eval(this.state);
             this.setInputValue(i, x0 - dv);
             const v2 = sgn * e.eval(this.state);
             let dx = (v - v2) / dv;
-            if (Math.abs(dx) < 1e-6)
-                dx = (dx > 0) ? 1e-6 : -1e-6;
+            // only a flat function gets a small slope instead: a real slope below 1e-6 (the
+            // transconductance of a filter stage in a macromodel, GAIN/R with R = 1e8) must stay
+            // as it is, since Newton's method diverges when the slope stamped isn't the slope
+            if (Math.abs(dx) < 1e-12)
+                dx = (dx > 0) ? 1e-12 : -1e-12;
             const vs = this.getInputVS(i);
             if (vs != null)
                 this.owner.stampInputDerivativeVS(vs, dx);

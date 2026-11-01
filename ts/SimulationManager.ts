@@ -1578,9 +1578,30 @@ export class SimulationManager {
 //	System.out.println((System.currentTimeMillis()-lastFrameTime)/(double) iter);
     }
 
+    // fraction of the Newton step taken at iteration subiter: [first iteration, fraction].
+    // ordinary circuits converge well before the first (damping them can upset the step
+    // limiting of transistors)
+    static readonly NEWTON_DAMPING: [number, number][] = [[100, 0.5], [150, 0.25], [250, 0.1], [500, 0.03], [1500, 0.01]];
+    static newtonStepFraction(subiter: number): number {
+	let f = 1;
+	for (const [n, x] of SimulationManager.NEWTON_DAMPING)
+	    if (subiter >= n)
+		f = x;
+	return f;
+    }
+
     // set node voltages given right side found by solving one matrix
     applySolvedRightSide(m: CircuitMatrix): void {
 	let j: number;
+	// Newton's method can cycle forever around the corners of piecewise functions (the
+	// limits and ifs in the high-gain loops of macromodels).  the longer it takes, the
+	// shorter the steps it takes, to break the cycle
+	if (m.nonLinear) {
+	    const f = SimulationManager.newtonStepFraction(this.subIterations);
+	    if (f < 1)
+		for (j = 0; j !== m.nodeCount; j++)
+		    m.rightSide[j] = m.nodeVoltages[j] + f * (m.rightSide[j] - m.nodeVoltages[j]);
+	}
 	for (j = 0; j !== m.size; j++) {
 	    const res = m.rightSide[j];
 	    if (isNaN(res)) {
