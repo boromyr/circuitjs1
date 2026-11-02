@@ -257,6 +257,8 @@ export class ExprEngine {
         for (let i = 0; i !== n; i++) {
             const x0 = this.getInputValue(i);
             let dv = x0 - this.lastInputs[i];
+            // (still moving: not yet near the solution)
+            const moving = Math.abs(dv) > 1e-3;
             // the step is relative for large inputs: nodes inside macromodels can sit at
             // millions of volts, where a step of 1e-6 is lost in the rounding of the values
             const minStep = 1e-6 * Math.max(1, Math.abs(x0));
@@ -266,6 +268,15 @@ export class ExprEngine {
             this.setInputValue(i, x0 - dv);
             const v2 = sgn * e.eval(this.state);
             let dx = (v - v2) / dv;
+            // while the input is still moving, where the function is flat (a limit that has
+            // saturated) the slope is that of the line back to the input's zero instead.  with no
+            // slope at all, a high-gain loop through the limit looks open, and Newton's method
+            // throws the other nodes far away and never comes back.  near the solution the real
+            // slope is used again, so a saturated output ends up exactly at its limit.
+            if (moving && Math.abs(dx) < 1e-12 && x0 !== 0) {
+                this.setInputValue(i, 0);
+                dx = (v - sgn * e.eval(this.state)) / x0;
+            }
             // only a flat function gets a small slope instead: a real slope below 1e-6 (the
             // transconductance of a filter stage in a macromodel, GAIN/R with R = 1e8) must stay
             // as it is, since Newton's method diverges when the slope stamped isn't the slope

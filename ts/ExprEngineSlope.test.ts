@@ -3,7 +3,7 @@ import { ExprEngine } from "./ExprEngine";
 import { SimulationManager } from "./SimulationManager";
 
 // the slopes evalAndStamp() stamps for an expression of two input pins at the given voltages
-function slopes(expr: string, a: number, b: number): number[] {
+function slopes(expr: string, a: number, b: number, lastA: number = a): number[] {
     const stamped: number[] = [];
     const owner: any = {
         nodes: [{ v: a }, { v: b }],
@@ -14,8 +14,8 @@ function slopes(expr: string, a: number, b: number): number[] {
     expect(engine.parse(expr)).toBeNull();
     engine.alloc(2);
     engine.pinInputCount = 2;
-    // as after the previous iteration, so the slope is the tangent, not a secant from 0
-    engine.lastInputs = [a, b];
+    // the inputs at the previous iteration: the same (converging) unless given
+    engine.lastInputs = [lastA, b];
     engine.evalAndStamp(false);
     return stamped;
 }
@@ -34,8 +34,20 @@ describe("expression slopes", () => {
         expect(da / 315789.473684211).toBeCloseTo(1, 6);
     });
 
-    it("give a flat function a tiny slope, not zero", () => {
+    it("give a saturated limit the slope of the line back to zero while its input moves", () => {
+        expect(slopes("clamp(a,-1,1)", 5, 0, 7)[0]).toBeCloseTo(1 / 5, 12);
+        expect(slopes("clamp(a,-1,1)", -4, 0, -6)[0]).toBeCloseTo(1 / 4, 12);
+        // in the linear region the slope is the real one
+        expect(slopes("clamp(a,-1,1)", 0.5, 0, 0.6)[0]).toBeCloseTo(1, 9);
+    });
+
+    it("use the real (flat) slope of a saturated limit near the solution", () => {
         const [da] = slopes("clamp(a,-1,1)", 5, 0);
+        expect(Math.abs(da)).toBeLessThan(1e-9);
+    });
+
+    it("give a function flat everywhere a tiny slope, not zero", () => {
+        const [da] = slopes("3+0*a", 5, 0);
         expect(Math.abs(da)).toBeGreaterThan(0);
         expect(Math.abs(da)).toBeLessThan(1e-9);
     });
