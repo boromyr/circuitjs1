@@ -366,6 +366,7 @@ conv-buckboost.txt Buck-Boost Converter
 conv-cuk.txt Ćuk Converter
 conv-sepic.txt SEPIC Converter
 switchreg.txt Switching Regulator
+boost-ic.txt Boost Regulator (Controller IC)
 -
 +Phase-Locked Loops
 xorphasedet.txt XOR Phase Detector
