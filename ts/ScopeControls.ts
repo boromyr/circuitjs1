@@ -52,6 +52,7 @@ export class ScopeControls {
     vBar: Scrollbar;
     channelBox: HTMLSelectElement;
     autoBox: HTMLInputElement;
+    couplingButton: HTMLButtonElement;
     vOptionsRow: HTMLDivElement;
     trigPanel: HTMLDivElement;
     trigValueLabel: HTMLSpanElement;
@@ -113,6 +114,20 @@ export class ScopeControls {
         autoLabel.appendChild(this.autoBox);
         autoLabel.appendChild(document.createTextNode(Locale.LS("Auto")));
         this.vOptionsRow.appendChild(autoLabel);
+        // DC/AC coupling of the selected channel (only plots of voltages can be AC coupled)
+        this.couplingButton = document.createElement('button');
+        this.couplingButton.className = 'scopeControlsEdge scopeControlsCoupling';
+        this.couplingButton.title = Locale.LS("DC Coupled") + " / " + Locale.LS("AC Coupled");
+        this.couplingButton.addEventListener('click', () => {
+            const scope = this.scope;
+            if (scope === null || this.channel >= scope.visiblePlots.length)
+                return;
+            const p = scope.visiblePlots[this.channel];
+            p.setAcCoupled(!p.isAcCoupled());
+            this.refresh();
+            this.sim.repaint();
+        });
+        this.vOptionsRow.appendChild(this.couplingButton);
         panel.appendChild(this.vOptionsRow);
 
         // trigger, only shown in manual scale mode, where the level slider has a fixed range
@@ -350,12 +365,15 @@ export class ScopeControls {
             if (this.vBar.isEnabled())
                 this.vBar.disable();
             this.autoBox.disabled = true;
+            ScopeControls.show(this.couplingButton, false);
             ScopeControls.setText(this.vValueLabel, "-");
         } else {
             if (!this.vBar.isEnabled())
                 this.vBar.enable();
             this.autoBox.disabled = false;
             const p = scope.visiblePlots[this.channel];
+            ScopeControls.show(this.couplingButton, p.canAcCouple());
+            ScopeControls.setText(this.couplingButton, p.isAcCoupled() ? "AC" : "DC");
             const v = manual ? p.manScale : scope.getManScaleFromMaxScale(p.units, true);
             ScopeControls.setBar(this.vBar, ScopeControls.vScaleToIndex(v));
             const units = Scope.getScaleUnitsTextStatic(p.units);
