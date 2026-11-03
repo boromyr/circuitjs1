@@ -42,6 +42,21 @@ describe("FFT steady state", () => {
         expect(steady(s.t, s.v, 40, 5e-6)).toBe(true);
     });
 
+    it("is reached when a period is not a whole number of samples", () => {
+        // 200.37 and 454.545 samples per period of 1 kHz: a sine with a harmonic, and a square wave
+        for (const spp of [200.37, 333.3, 454.545]) {
+            const dt = 1e-3 / spp, t: number[] = [], sine: number[] = [], square: number[] = [];
+            for (let i = 0; i * dt <= 0.04; i++) {
+                const x = i * dt;
+                t.push(x);
+                sine.push(Math.sin(2 * Math.PI * 1000 * x) + 0.5 * Math.sin(2 * Math.PI * 3000 * x + 1));
+                square.push(Math.floor(2000 * x + 1e-9) % 2 ? -1 : 1);
+            }
+            expect(steady(t, sine, 1000, dt)).toBe(true);
+            expect(steady(t, square, 1000, dt)).toBe(true);
+        }
+    });
+
     it("needs two periods", () => {
         const s = signal(0.04, 0, 1);
         expect(steady(s.t, s.v, 40, 5e-6)).toBe(false);

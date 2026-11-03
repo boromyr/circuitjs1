@@ -309,16 +309,30 @@
 	}
 
 	// true when the signal repeats with the period of the source: the mean and the RMS of the last
-	// period are those of the one before.  Until then a start-up transient (capacitors charging
+	// periods are those of the ones before.  Until then a start-up transient (capacitors charging
 	// to their bias, eg after a reset) is still there, and shows up at the low frequencies.
 	function steady(t, v, f0, dt) {
-		var T = 1 / f0;
-		// whole periods long enough that cutting them between samples doesn't matter
-		T *= Math.max(1, Math.ceil(200 * dt / T));
-		var t1 = t[t.length - 1];
-		if (t1 - 2 * T < t[0]) return false;
+		var t1 = t[t.length - 1], p = 1 / (f0 * dt);   // samples per period
+		// c periods, at least 200 samples, that are closest to a whole number of samples n (off by
+		// err samples), so both spans start and end on samples: a period cut between two samples
+		// is off by much more than the tolerance (by linear interpolation, or at an edge).  Not
+		// over a quarter of the record, so the spans are free of the transient soon after it ends.
+		var cmin = Math.max(1, Math.ceil(200 / p));
+		var cmax = Math.max(cmin, Math.min(32 * cmin, Math.floor((t1 - t[0]) / (4 * p * dt))));
+		var c = cmin, err = Infinity;
+		for (var k = cmin; k <= cmax && err > 1e-6; k++) {
+			var e = Math.abs(k * p - Math.round(k * p));
+			if (e < err * 0.5) { c = k; err = e; }
+		}
+		var n = Math.round(c * p), T = n * dt;
+		if (t1 - 2 * T < t[0] - dt * 1e-6) return false;
 		var a = spanStats(t, v, t1 - 2 * T, t1 - T), b = spanStats(t, v, t1 - T, t1);
-		var tol = SETTLE_TOL * Math.max(b.rms, 1e-12);
+		// what the err samples left over move: the 2c edges of a square wave slide by err samples
+		// from one span to the next, and about 2c err of them reach the next sample, each changing
+		// the mean by its height / n (the smooth signals change much less)
+		var lo = Infinity, hi = -Infinity;
+		for (var i = t.length - 1; i >= 0 && t[i] >= t1 - T; i--) { lo = Math.min(lo, v[i]); hi = Math.max(hi, v[i]); }
+		var tol = SETTLE_TOL * Math.max(b.rms, 1e-12) + Math.ceil(2 * c * err - 1e-3) * (hi - lo) / n;
 		return Math.abs(a.mean - b.mean) <= tol && Math.abs(a.rms - b.rms) <= tol;
 	}
 
