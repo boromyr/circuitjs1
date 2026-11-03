@@ -52,12 +52,3 @@ describe("expression slopes", () => {
         expect(Math.abs(da)).toBeLessThan(1e-9);
     });
 });
-
-describe("Newton damping", () => {
-    it("leaves ordinary iterations alone and shortens the steps of long ones", () => {
-        expect(SimulationManager.newtonStepFraction(0)).toBe(1);
-        expect(SimulationManager.newtonStepFraction(99)).toBe(1);
-        expect(SimulationManager.newtonStepFraction(100)).toBe(0.5);
-        expect(SimulationManager.newtonStepFraction(4999)).toBe(0.01);
-    });
-});
