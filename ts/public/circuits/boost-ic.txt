@@ -21,7 +21,7 @@
     <Or nn="14 10 15" x="912 432 1008 432" f="0"/>
     <v nn="1 14" x="896 640 896 576" f="0" wf="2" fr="50000" maxv="2.5" bias="2.5" phaseShift="0.628319" dutyCycle="0.1"/>
     <DFlipFlop nn="13 16 17 18 15" x="1072 432 1104 432" f="2"/>
-    <v nn="1 18" x="1056 640 1056 576" f="0" wf="2" fr="50000" maxv="2.5" bias="2.5" dutyCycle="0.05"/>
+    <v nn="1 18" x="1056 640 1056 576" f="0" wf="2" fr="50000" maxv="2.5" bias="2.5"/>
     <mm nm="BOOST-CM-nmos" f="0" vt="1.5" be="5" sb="1" dsy="0" bd="0" bt="0" sbd="0"/>
     <f nn="16 7 19" x="1216 432 1264 432" f="0" mo="BOOST-CM-nmos"/>
     <r nn="7 1" x="1264 448 1264 528" f="0" r="0.05"/>
@@ -115,12 +115,6 @@
   <w x="848 320 784 320" f="0"/>
   <g x="304 384 304 400" f="0"/>
   <O x="704 224 704 176" f="1" sc="0"/>
-  <x x="176 144 560 147" f="0" si="16" te="Boost regulator with a current-mode controller IC"/>
-  <x x="176 464 470 467" f="0" si="12" te="5 V in, 12 V out, 50 kHz. Inside the IC (double-click it,"/>
-  <x x="176 484 470 487" f="0" si="12" te="View Components): 1.25 V reference with soft start,"/>
-  <x x="176 504 470 507" f="0" si="12" te="error amplifier (transconductance), current sense,"/>
-  <x x="176 524 470 527" f="0" si="12" te="PWM comparator, oscillator and latch, max duty 90%."/>
-  <x x="860 200 960 203" f="0" si="12" te="load step"/>
   <o en="16" sp="2" f="x420002" p="0">
     <p v="0" sc="15"/>
   </o>
